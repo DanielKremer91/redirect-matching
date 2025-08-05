@@ -21,7 +21,6 @@ Folge mir auf <a href="https://www.linkedin.com/in/daniel-kremer-b38176264/" tar
 <hr>
 """, unsafe_allow_html=True)
 
-
 # Erklärtext
 st.markdown("""
 ### Was macht der ONE Redirector?
@@ -56,9 +55,9 @@ Lade zwei Dateien hoch – jeweils mit den URLs deiner alten und neuen Domain.
 Wenn du Embeddings **automatisch im Tool erstellen** lässt, stehen dir folgende Modelle zur Auswahl:
 
 - `all-MiniLM-L6-v2` (Standard) – sehr schnell, solide Semantik  
-- `all-MiniLM-L12-v2` – etwas gründlicher, aber immer noch schnell  
+- `all-MiniLM-L12-v2` – gründlicher, aber immer noch schnell  
 
-Beide Modelle stammen aus der `sentence-transformers`-Bibliothek und sind besonders für kurze Texte (z. B. Title, H1, Meta Description) geeignet.
+Beide Modelle stammen aus der `sentence-transformers`-Bibliothek.
 
 **Wenn du bereits Embeddings in deinen Dateien zur Verfügung stellst**, wird **kein Modell im Tool geladen**. Das Matching erfolgt dann direkt auf Basis deiner Vektoren – unabhängig davon, mit welchem Modell du sie erzeugt hast. Wichtig ist nur:  
 👉 **Beide Dateien müssen mit demselben Modell verarbeitet worden sein** und die Embeddings müssen korrekt formatiert vorliegen.
@@ -78,16 +77,16 @@ Beide Modelle stammen aus der `sentence-transformers`-Bibliothek und sind besond
 ---
 
 **Output:**  
-Du erhältst eine **CSV-Datei** mit bis zu **5 passende Redirect-Ziele** (inkl. Score) 
+Du erhältst eine **CSV-Datei** mit bis zu **5 passenden Redirect-Zielen** (inkl. Score)  
 Auch URLs ohne passenden Treffer werden im Ergebnis mit `"No Match"` ausgewiesen.
 
 ---
 
 **Weitere Features:**
 
-- Flexible Spaltenauswahl für Exact und/oder semantisches Matching
-- Manuell einstellbarer **Similarity Threshold**
-- Unterstützung von vorberechneten Embeddings
+- Flexible Spaltenauswahl für Exact und/oder semantisches Matching  
+- Manuell einstellbarer **Similarity Threshold**  
+- Unterstützung von vorberechneten Embeddings  
 - Keine Blackbox: Alle Entscheidungen und Scores sind im Ergebnis nachvollziehbar
 
 ---
@@ -116,19 +115,26 @@ if uploaded_old and uploaded_new:
 
     # Matching Methode wählen
     st.subheader("2. Matching Methode wählen")
-    matching_method = st.selectbox("Wie möchtest du matchen?", ["Exact Match", "Semantisches Matching mit FAISS (Schneller, für große Datenmengen geeignet)", "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)"])
+    matching_method = st.selectbox("Wie möchtest du matchen?", [
+        "Exact Match",
+        "Semantisches Matching mit FAISS (Schneller, für große Datenmengen geeignet)",
+        "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)"
+    ])
 
-    # Embedding Quelle nur zeigen, wenn nicht nur Exact Matching
+    # Embedding-Quelle nur anzeigen, wenn semantisches Matching
     if matching_method != "Exact Match":
         st.subheader("3. Embedding-Quelle")
-        embedding_choice = st.radio("Stellst du die Embeddings für das semantische Matching in deinen Input-Dateien bereits zur Verfügung oder müssen diese erst noch generiert werden?", ["Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden", "Embeddings sind bereits generiert und in Input-Dateien vorhanden"])
+        embedding_choice = st.radio(
+            "Stellst du die Embeddings für das semantische Matching in deinen Input-Dateien bereits zur Verfügung oder müssen diese erst noch generiert werden?",
+            ["Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden", "Embeddings sind bereits generiert und in Input-Dateien vorhanden"]
+        )
 
         model_name = "all-MiniLM-L6-v2"
         if embedding_choice == "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden":
-            model_label = st.selectbox("Welches Modell zur Embedding-Generierung soll verwendet werden?", [
+            model_label = st.selectbox("Welches Modell zur Embedding-Generierung soll verwendet werden?", sorted([
                 "all-MiniLM-L6-v2 (sehr schnell, gründlich)",
                 "all-MiniLM-L12-v2 (schnell, gründlicher)"
-            ])
+            ]))
             model_name = model_label
         else:
             model_name = None
@@ -138,7 +144,7 @@ if uploaded_old and uploaded_new:
 
     # Spaltenauswahl
     st.subheader("4. Spaltenauswahl")
-    common_cols = list(set(df_old.columns) & set(df_new.columns))
+    common_cols = sorted(list(set(df_old.columns) & set(df_new.columns)))
 
     if matching_method != "Exact Match":
         st.caption("Optional: Du kannst die Auswahl bei Exact Match leer lassen, wenn du nur semantisches Matching durchführen möchtest.")
@@ -157,7 +163,7 @@ if uploaded_old and uploaded_new:
     else:
         threshold = 0.5  # Fallback
 
-    if st.button("Let's Go"):
+    if st.button("Let's Go", type="primary"):
         results = []
         matched_old = set()
 
