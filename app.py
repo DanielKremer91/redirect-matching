@@ -62,8 +62,6 @@ if uploaded_old and uploaded_new:
 
     exact_cols = st.multiselect("Spalten für Exact Match auswählen", common_cols)
 
-
-
     if matching_method != "Nur Exact Match verwenden" and embedding_choice == "Nein, Embeddings automatisch erstellen":
         similarity_cols = st.multiselect("Spalten für semantisches Matching auswählen", common_cols)
     else:
@@ -128,21 +126,33 @@ if uploaded_old and uploaded_new:
                     emb_new = emb_new / np.linalg.norm(emb_new, axis=1, keepdims=True)
                     emb_old = emb_old / np.linalg.norm(emb_old, axis=1, keepdims=True)
                     index.add(emb_new.astype('float32'))
-                    sim_matrix, I = index.search(emb_old.astype('float32'), k=5)
+                    k = min(5, len(df_new))
+                    sim_matrix, I = index.search(emb_old.astype('float32'), k=k)
 
                 for i in range(len(df_remaining)):
                     row_result = {"Old URL": df_remaining['Address'].iloc[i]}
-                    row_scores = sim_matrix[i] if matching_method == "Gründlich (sklearn cosine similarity)" else sim_matrix[i]
+                    row_scores = sim_matrix[i]
                     row_indices = np.argsort(row_scores)[::-1] if matching_method == "Gründlich (sklearn cosine similarity)" else I[i]
+
                     rank = 1
                     for idx in row_indices:
-                        score = round(float(row_scores[idx]), 4)
+                        if idx >= len(df_new):
+                            continue  # Ungültiger Index – überspringen
+
+                        try:
+                            score = round(float(row_scores[idx]), 4)
+                        except (IndexError, ValueError):
+                            continue
+
                         if score < threshold:
                             continue
+
                         row_result[f"Matched URL {rank}"] = df_new['Address'].iloc[idx]
                         row_result[f"Cosine Similarity Score {rank}"] = score
+
                         if rank == 1:
                             row_result["Match Type"] = f"Similarity ({'sklearn' if matching_method == 'Gründlich (sklearn cosine similarity)' else 'faiss'})"
+
                         rank += 1
                         if rank > 5:
                             break
