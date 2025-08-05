@@ -13,10 +13,13 @@ st.image("https://onebeyondsearch.com/img/ONE_beyond_search%C3%94%C3%87%C3%B4gra
 st.title("🔀 ONE Redirector – finde die passenden Redirect-Ziele")
 
 st.markdown("""
-**Entwickelt von [Daniel Kremer](https://www.linkedin.com/in/daniel-kremer-b38176264/) von [ONE Beyond Search](https://onebeyondsearch.com/)**  
-[Folge mir / Vernetze dich mit mir auf LinkedIn](https://www.linkedin.com/in/daniel-kremer-b38176264/)  
----
-""")
+<small>
+Entwickelt von <a href="https://www.linkedin.com/in/daniel-kremer-b38176264/" target="_blank">Daniel Kremer</a> von <a href="https://onebeyondsearch.com/" target="_blank">ONE Beyond Search</a>  
+<br>
+Folge mir auf <a href="https://www.linkedin.com/in/daniel-kremer-b38176264/" target="_blank">LinkedIn</a>
+</small>
+<hr>
+""", unsafe_allow_html=True)
 
 
 # Erklärtext
