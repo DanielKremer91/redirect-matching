@@ -56,7 +56,13 @@ if uploaded_old and uploaded_new:
     # Spaltenauswahl
     st.subheader("4. Spaltenauswahl")
     common_cols = list(set(df_old.columns) & set(df_new.columns))
+
+    if matching_method != "Nur Exact Match verwenden":
+        st.caption("Optional: Du kannst diese Auswahl leer lassen, wenn du nur semantisches Matching durchführen möchtest.")
+
     exact_cols = st.multiselect("Spalten für Exact Match auswählen", common_cols)
+
+
 
     if matching_method != "Nur Exact Match verwenden" and embedding_choice == "Nein, Embeddings automatisch erstellen":
         similarity_cols = st.multiselect("Spalten für semantisches Matching auswählen", common_cols)
