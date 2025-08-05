@@ -12,6 +12,13 @@ st.set_page_config(page_title="ONE Redirector", layout="wide")
 st.image("https://onebeyondsearch.com/img/ONE_beyond_search%C3%94%C3%87%C3%B4gradient%20%282%29.png", width=250)
 st.title("🔀 ONE Redirector – finde die passenden Redirect-Ziele")
 
+st.markdown("""
+**Entwickelt von [Daniel Kremer](https://www.linkedin.com/in/daniel-kremer-b38176264/) von [ONE Beyond Search](https://onebeyondsearch.com/)**  
+[Folge mir / Vernetze dich mit mir auf LinkedIn](https://www.linkedin.com/in/daniel-kremer-b38176264/)  
+---
+""")
+
+
 # Erklärtext
 st.markdown("""
 ### Was macht der ONE Redirector?
