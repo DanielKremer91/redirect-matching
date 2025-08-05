@@ -7,8 +7,81 @@ from sklearn.metrics.pairwise import cosine_similarity
 import faiss
 import base64
 
+# Layout und Branding
 st.set_page_config(page_title="ONE Redirector", layout="wide")
+st.image("https://onebeyondsearch.com/img/ONE_beyond_search%C3%94%C3%87%C3%B4gradient%20%282%29.png", width=250)
 st.title("🔀 ONE Redirector – finde die passenden Redirect-Ziele")
+
+# Erklärtext
+st.markdown("""
+### Was macht der ONE Redirector?
+
+**Ziel:**  
+Dieses Tool hilft dir dabei, bei **Relaunches** oder **Domain-Migrationen** passende Redirect-Ziele auf Knopfdruck zu finden.
+
+---
+
+**Vorgehen:**  
+Du hast die Wahl zwischen zwei Matching-Ansätzen:
+
+- **Exact Matching**  
+  1:1-Abgleich auf Basis identischer Inhalte in ausgewählten Spalten  
+  *(z. B. identische H1, Meta Title, etc.)*
+
+- **Semantisches Matching**  
+  Zuordnung auf Basis **inhaltlicher Ähnlichkeit**.  
+  Grundlage: **Vektor-Embeddings**, die du entweder bereitstellst oder automatisch erstellen lässt.
+
+---
+
+**Was wird von dir benötigt?**  
+Lade zwei Dateien hoch – jeweils mit den URLs deiner alten und neuen Domain.  
+✅ Unterstützt werden CSV und Excel  
+✅ Ideal: **Screaming Frog Crawl-Dateien**  
+💡 Tipp: Mit einem Custom JavaScript kannst du den für dich relevanten Seiteninhalt extrahieren und für das semantische Matching nutzen. Sprich mich gerne an, wenn du das Skript haben möchtest!
+
+---
+
+**Modelle zur Embedding-Erstellung:**  
+Wenn du Embeddings **automatisch im Tool erstellen** lässt, stehen dir folgende Modelle zur Auswahl:
+
+- `all-MiniLM-L6-v2` (Standard) – sehr schnell, solide Semantik  
+- `all-MiniLM-L12-v2` – etwas gründlicher, aber immer noch schnell  
+
+Beide Modelle stammen aus der `sentence-transformers`-Bibliothek und sind besonders für kurze Texte (z. B. Title, H1, Meta Description) geeignet.
+
+**Wenn du bereits Embeddings in deinen Dateien zur Verfügung stellst**, wird **kein Modell im Tool geladen**. Das Matching erfolgt dann direkt auf Basis deiner Vektoren – unabhängig davon, mit welchem Modell du sie erzeugt hast. Wichtig ist nur:  
+👉 **Beide Dateien müssen mit demselben Modell verarbeitet worden sein** und die Embeddings müssen korrekt formatiert vorliegen.
+
+---
+
+**Unterschied: FAISS vs. sklearn (für semantisches Matching)**
+
+| Methode     | Geschwindigkeit | Genauigkeit     | Ideal für             |
+|-------------|------------------|------------------|------------------------|
+| **FAISS**   | Sehr hoch        | ~90–95 %         | Große Projekte (ab ca. 2.000 URLs) |
+| **sklearn** | Langsamer        | 100 % exakt      | Kleine bis mittlere Projekte        |
+
+- **FAISS** nutzt Approximate Nearest Neighbor Search – extrem schnell, ideal für große Datenmengen, aber leicht ungenau  
+- **sklearn** berechnet exakte Cosine Similarity – sehr gründlich, aber bei vielen URLs langsam und speicherintensiv
+
+---
+
+**Output:**  
+Du erhältst eine **CSV-Datei** mit bis zu **5 passende Redirect-Ziele** (inkl. Score) 
+Auch URLs ohne passenden Treffer werden im Ergebnis mit `"No Match"` ausgewiesen.
+
+---
+
+**Weitere Features:**
+
+- Flexible Spaltenauswahl für Exact und/oder semantisches Matching
+- Manuell einstellbarer **Similarity Threshold**
+- Unterstützung von vorberechneten Embeddings
+- Keine Blackbox: Alle Entscheidungen und Scores sind im Ergebnis nachvollziehbar
+
+---
+""")
 
 # Datei-Upload
 st.subheader("1. Dateien hochladen")
@@ -33,16 +106,16 @@ if uploaded_old and uploaded_new:
 
     # Matching Methode wählen
     st.subheader("2. Matching Methode wählen")
-    matching_method = st.selectbox("Wie möchtest du matchen?", ["Nur Exact Match verwenden", "Schnell (FAISS)", "Gründlich (sklearn cosine similarity)"])
+    matching_method = st.selectbox("Wie möchtest du matchen?", ["Exact Match", "Semantisches Matching mit FAISS (Schneller, für große Datenmengen geeignet)", "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)"])
 
     # Embedding Quelle nur zeigen, wenn nicht nur Exact Matching
-    if matching_method != "Nur Exact Match verwenden":
+    if matching_method != "Exact Match":
         st.subheader("3. Embedding-Quelle")
-        embedding_choice = st.radio("Stellst du die Embeddings in deinen Input-Dateien bereits zur Verfügung?", ["Nein, Embeddings automatisch erstellen", "Ja, Embeddings aus Dateien verwenden"])
+        embedding_choice = st.radio("Stellst du die Embeddings für das semantische Matching in deinen Input-Dateien bereits zur Verfügung oder müssen diese erst noch generiert werden?", ["Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden", "Embeddings sind bereits generiert und in Input-Dateien vorhanden"])
 
         model_name = "all-MiniLM-L6-v2"
-        if embedding_choice == "Nein, Embeddings automatisch erstellen":
-            model_label = st.selectbox("Welches Modell soll verwendet werden?", [
+        if embedding_choice == "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden":
+            model_label = st.selectbox("Welches Modell zur Embedding-Generierung soll verwendet werden?", [
                 "all-MiniLM-L6-v2 (sehr schnell, gründlich)",
                 "all-MiniLM-L12-v2 (schnell, gründlicher)"
             ])
@@ -57,20 +130,20 @@ if uploaded_old and uploaded_new:
     st.subheader("4. Spaltenauswahl")
     common_cols = list(set(df_old.columns) & set(df_new.columns))
 
-    if matching_method != "Nur Exact Match verwenden":
-        st.caption("Optional: Du kannst diese Auswahl leer lassen, wenn du nur semantisches Matching durchführen möchtest.")
+    if matching_method != "Exact Match":
+        st.caption("Optional: Du kannst die Auswahl bei Exact Match leer lassen, wenn du nur semantisches Matching durchführen möchtest.")
 
     exact_cols = st.multiselect("Spalten für Exact Match auswählen", common_cols)
 
-    if matching_method != "Nur Exact Match verwenden" and embedding_choice == "Nein, Embeddings automatisch erstellen":
-        similarity_cols = st.multiselect("Spalten für semantisches Matching auswählen", common_cols)
+    if matching_method != "Exact Match" and embedding_choice == "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden":
+        similarity_cols = st.multiselect("Spalten für semantisches Matching auswählen – auf Basis dieser Inhalte werden die Embeddings erstellt und verglichen", common_cols)
     else:
         similarity_cols = []
 
     # Threshold
-    if matching_method != "Nur Exact Match verwenden":
+    if matching_method != "Exact Match":
         st.subheader("5. Cosine Similarity Schwelle")
-        threshold = st.slider("Minimaler Score für semantisches Matching", 0.0, 1.0, 0.5, 0.01)
+        threshold = st.slider("Minimaler Score für semantisches Matching – welchen Schwellenwert an Cosinus Similarity muss eine URL erreichen, um als potentielles Weiterleitungsziel in den Output aufgenommen zu werden", 0.0, 1.0, 0.5, 0.01)
     else:
         threshold = 0.5  # Fallback
 
@@ -98,15 +171,15 @@ if uploaded_old and uploaded_new:
 
         # 2. Similarity Matching
         df_remaining = df_old[~df_old['Address'].isin(matched_old)].reset_index(drop=True)
-        if matching_method != "Nur Exact Match verwenden" and df_remaining.shape[0] > 0:
-            if embedding_choice == "Nein, Embeddings automatisch erstellen" and similarity_cols:
+        if matching_method != "Exact Match" and df_remaining.shape[0] > 0:
+            if embedding_choice == "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden" and similarity_cols:
                 st.write("Erstelle Embeddings mit", model_name)
                 model = SentenceTransformer(model_name.split()[0])
                 df_remaining['text'] = df_remaining[similarity_cols].fillna('').agg(' '.join, axis=1)
                 df_new['text'] = df_new[similarity_cols].fillna('').agg(' '.join, axis=1)
                 emb_old = model.encode(df_remaining['text'].tolist(), show_progress_bar=True)
                 emb_new = model.encode(df_new['text'].tolist(), show_progress_bar=True)
-            elif embedding_choice == "Ja, Embeddings aus Dateien verwenden":
+            elif embedding_choice == "Embeddings sind bereits generiert und in Input-Dateien vorhanden":
                 emb_col_old = next((col for col in df_old.columns if 'embedding' in col.lower()), None)
                 emb_col_new = next((col for col in df_new.columns if 'embedding' in col.lower()), None)
                 if not emb_col_old or not emb_col_new:
@@ -118,7 +191,7 @@ if uploaded_old and uploaded_new:
                 emb_old, emb_new = None, None
 
             if emb_old is not None and emb_new is not None:
-                if matching_method == "Gründlich (sklearn cosine similarity)":
+                if matching_method == "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)":
                     sim_matrix = cosine_similarity(emb_old, emb_new)
                 else:
                     dim = emb_new.shape[1]
@@ -132,7 +205,7 @@ if uploaded_old and uploaded_new:
                 for i in range(len(df_remaining)):
                     row_result = {"Old URL": df_remaining['Address'].iloc[i]}
                     
-                    if matching_method == "Gründlich (sklearn cosine similarity)":
+                    if matching_method == "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)":
                         row_scores = sim_matrix[i]
                         top_indices = np.argsort(row_scores)[::-1][:5]
                     else:
@@ -145,7 +218,7 @@ if uploaded_old and uploaded_new:
                             continue
 
                         try:
-                            score = float(row_scores[j]) if matching_method != "Gründlich (sklearn cosine similarity)" else float(row_scores[idx])
+                            score = float(row_scores[j]) if matching_method != "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)" else float(row_scores[idx])
                         except (IndexError, ValueError):
                             continue
 
@@ -158,7 +231,7 @@ if uploaded_old and uploaded_new:
                         row_result[f"Cosine Similarity Score {rank}"] = score
 
                         if rank == 1:
-                            row_result["Match Type"] = f"Similarity ({'sklearn' if matching_method == 'Gründlich (sklearn cosine similarity)' else 'faiss'})"
+                            row_result["Match Type"] = f"Similarity ({'sklearn' if matching_method == 'Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)' else 'faiss'})"
 
                         rank += 1
 
