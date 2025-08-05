@@ -131,18 +131,25 @@ if uploaded_old and uploaded_new:
 
                 for i in range(len(df_remaining)):
                     row_result = {"Old URL": df_remaining['Address'].iloc[i]}
-                    row_scores = sim_matrix[i]
-                    row_indices = np.argsort(row_scores)[::-1] if matching_method == "Gründlich (sklearn cosine similarity)" else I[i]
+                    
+                    if matching_method == "Gründlich (sklearn cosine similarity)":
+                        row_scores = sim_matrix[i]
+                        top_indices = np.argsort(row_scores)[::-1][:5]
+                    else:
+                        top_indices = I[i]
+                        row_scores = sim_matrix[i]
 
                     rank = 1
-                    for idx in row_indices:
+                    for j, idx in enumerate(top_indices):
                         if idx >= len(df_new):
-                            continue  # Ungültiger Index – überspringen
+                            continue
 
                         try:
-                            score = round(float(row_scores[idx]), 4)
+                            score = float(row_scores[j]) if matching_method != "Gründlich (sklearn cosine similarity)" else float(row_scores[idx])
                         except (IndexError, ValueError):
                             continue
+
+                        score = round(score, 4)
 
                         if score < threshold:
                             continue
@@ -154,8 +161,7 @@ if uploaded_old and uploaded_new:
                             row_result["Match Type"] = f"Similarity ({'sklearn' if matching_method == 'Gründlich (sklearn cosine similarity)' else 'faiss'})"
 
                         rank += 1
-                        if rank > 5:
-                            break
+
                     if rank > 1:
                         results.append(row_result)
 
