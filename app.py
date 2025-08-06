@@ -10,7 +10,7 @@ import base64
 # Layout und Branding
 st.set_page_config(page_title="ONE Redirector", layout="wide")
 st.image("https://onebeyondsearch.com/img/ONE_beyond_search%C3%94%C3%87%C3%B4gradient%20%282%29.png", width=250)
-st.title("🔀 ONE Redirector – finde die passenden Redirect-Ziele")
+st.title("ONE Redirector – finde die passenden Redirect-Ziele 🔀")
 
 st.markdown("""
 <div style="background-color: #f2f2f2; color: #000000; padding: 15px 20px; border-radius: 6px; font-size: 0.9em; max-width: 600px; margin-bottom: 1.5em; line-height: 1.5;">
