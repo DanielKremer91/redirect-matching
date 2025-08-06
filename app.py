@@ -9,22 +9,14 @@ import base64
 
 # Layout und Branding
 st.set_page_config(page_title="ONE Redirector", layout="wide")
+st.image("https://onebeyondsearch.com/img/ONE_beyond_search%C3%94%C3%87%C3%B4gradient%20%282%29.png", width=250)
+st.title("🔀 ONE Redirector – finde die passenden Redirect-Ziele")
 
-# Zwei Bilder nebeneinander anzeigen
-col1, col2 = st.columns([1, 2])
-
-with col1:
-    st.image("https://onebeyondsearch.com/img/ONE_beyond_search%C3%94%C3%87%C3%B4gradient%20%282%29.png", width=200)
-
-with col2:
-    st.image("https://onebeyondsearch.com/img/hero-v1-2000.webp", use_column_width=True)
-
-# Autorenblock
 st.markdown("""
-<div style="background-color: #f5f5f5; padding: 10px 15px; border-radius: 8px; font-size: 0.9em; margin-bottom: 15px;">
-    Entwickelt von <a href="https://www.linkedin.com/in/daniel-kremer-b38176264/" target="_blank"><strong>Daniel Kremer</strong></a> von 
-    <a href="https://onebeyondsearch.com/" target="_blank"><strong>ONE Beyond Search</strong></a><br>
-    Folge mir auf <a href="https://www.linkedin.com/in/daniel-kremer-b38176264/" target="_blank">LinkedIn</a>
+<div style='font-size:0.9em; color:gray; margin-bottom:1em;'>
+Entwickelt von <a href="https://www.linkedin.com/in/daniel-kremer-b38176264/" target="_blank">Daniel Kremer</a> von <a href="https://onebeyondsearch.com/" target="_blank">ONE Beyond Search</a>  
+<br>
+Folge mir auf <a href="https://www.linkedin.com/in/daniel-kremer-b38176264/" target="_blank">LinkedIn</a>
 </div>
 <hr>
 """, unsafe_allow_html=True)
