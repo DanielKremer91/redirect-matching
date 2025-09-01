@@ -147,24 +147,21 @@ def build_embeddings_from_columns(
     return np.array(emb_old, dtype="float32"), np.array(emb_new, dtype="float32")
 
 
-def load_embeddings_from_frames(
-    df_old: pd.DataFrame, df_new: pd.DataFrame
-) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-    """Liest Embeddings aus den DataFrames (je eine Embedding-Spalte erwartet)."""
-    col_old = find_embedding_column(df_old)
-    col_new = find_embedding_column(df_new)
+def load_embeddings_from_frames(df_old: pd.DataFrame, df_new: pd.DataFrame):
+    """Nimmt die erste Spalte mit 'embedding' im Namen (case-insensitive) und parst deren Werte."""
+    emb_col_old = next((col for col in df_old.columns if 'embedding' in col.lower()), None)
+    emb_col_new = next((col for col in df_new.columns if 'embedding' in col.lower()), None)
 
-    if not col_old or not col_new:
+    if not emb_col_old or not emb_col_new:
         return None, None
 
-    old_vecs = df_old[col_old].apply(parse_embedding_cell)
-    new_vecs = df_new[col_new].apply(parse_embedding_cell)
+    def parse_values(x):
+        # Entfernt Klammern, splittet an Komma und wandelt in Floats
+        return np.array([float(v) for v in str(x).replace("[", "").replace("]", "").split(",") if v.strip()])
 
-    if old_vecs.isnull().any() or new_vecs.isnull().any():
-        return None, None
+    emb_old = np.stack(df_old[emb_col_old].dropna().apply(parse_values).values).astype("float32")
+    emb_new = np.stack(df_new[emb_col_new].dropna().apply(parse_values).values).astype("float32")
 
-    emb_old = np.stack(old_vecs.values).astype("float32")
-    emb_new = np.stack(new_vecs.values).astype("float32")
     return emb_old, emb_new
 
 
