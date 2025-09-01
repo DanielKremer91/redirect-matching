@@ -85,7 +85,7 @@ st.markdown("""
 ✅ Unterstützt werden CSV und Excel
 ✅ Ideal: **Screaming Frog Crawl-Dateien**
 
-💡 Tipp: Mit einem Custom JavaScript kannst du den für dich relevanten Seiteninhalt extrahieren und für das semantische Matching nutzen. Sprich mich gerne an, wenn du das Skript haben möchtest!
+💡 Tipp: Mit einem Custom JavaScript kannst du den für dich relevanten Seiteninhalt extrahieren und für das semantische Matching nutzen oder (Pro-Tipp) direkt im Screaming Frog basierend auf dem extrahierten Content die Embeddings berechnen lassen. Sprich mich gerne an, wenn du das Skript haben möchtest!
 
 ---
 
@@ -249,7 +249,7 @@ if uploaded_old and uploaded_new:
     if matching_method != "Exact Match":
         st.subheader("5. Cosine Similarity Schwelle")
         threshold = st.slider(
-            "Minimaler Score für semantisches Matching – welchen Schwellenwert an Cosinus Similarity muss eine URL erreichen, um als potentielles Weiterleitungsziel in den Output aufgenommen zu werden",
+            "Minimaler Score für semantisches Matching – welchen Schwellenwert an Cosinus Similarity muss eine URL erreichen, um als potentielles Weiterleitungsziel in den Output aufgenommen zu werden? Interpretation der Zahlenwerte: Cosine Similartiy von 0 = keine Ähnlichkeit, die URLs sind sich absolut unähnlich; 1 = die URLs sind sich identisch. Empfehlung: Mindestens 0.75 auswählen.",
             0.0, 1.0, 0.5, 0.01
         )
     else:
