@@ -255,7 +255,7 @@ if uploaded_old and uploaded_new:
                 common_cols
             )
         elif embedding_choice == "Embeddings sind bereits generiert und in Input-Dateien vorhanden":
-            st.caption("Hinweis: Bei dieser Option musst du keine Spalten auswählen – das Tool erkennt die Embedding-Spalten automatisch, wenn sie im Spaltennamen 'embedding' enthalten.")
+            st.caption("Hinweis: Wenn du die Option Embeddings sind bereits generiert und in Input-Dateien vorhanden ausgewählt hast und kein Exact Match durchführen möchtest, musst du keine Spaltenauswahl vornehmen – das Tool erkennt die Embedding-Spalten automatisch, wenn sie im Spaltennamen 'embedding' enthalten.")
             similarity_cols = []
         else:
             similarity_cols = []
