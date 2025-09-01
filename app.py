@@ -7,6 +7,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 import faiss
 import base64
 
+# -----------------------------
+# Utils
+# -----------------------------
 def parse_embedding_cell(val):
     if isinstance(val, (list, np.ndarray)):
         arr = np.asarray(val, dtype=float)
@@ -119,7 +122,33 @@ def pick_embedding_column(df: pd.DataFrame):
             best_col, best_rate, best_dim = c, rate, dim
     return best_col
 
-# Layout und Branding
+def build_matrix_and_filter(df: pd.DataFrame, col: str):
+    """
+    Parsed Embedding-Spalte -> (float32-Matrix, bool-Maske für gültige Zeilen, dim)
+    - akzeptiert Listen/Arrays oder Strings (',' oder whitespace separiert, mit/ohne Klammern)
+    - wählt die dominante Dimension (mode)
+    - filtert auf finite Werte
+    """
+    parsed = df[col].apply(parse_embedding_cell)
+    dims = parsed.dropna().map(lambda a: a.shape[0] if isinstance(a, np.ndarray) else None).dropna()
+    if dims.empty:
+        return None, pd.Series([False]*len(df), index=df.index), 0
+
+    dim = int(dims.mode().iloc[0])
+
+    def is_valid(a):
+        return isinstance(a, np.ndarray) and a.shape[0] == dim and np.isfinite(a).all()
+
+    valid_mask = parsed.map(is_valid)
+    if not valid_mask.any():
+        return None, valid_mask, dim
+
+    mat = np.vstack(parsed[valid_mask].to_list()).astype("float32")
+    return mat, valid_mask, dim
+
+# -----------------------------
+# UI/Branding
+# -----------------------------
 st.set_page_config(page_title="ONE Redirector", layout="wide")
 st.image("https://onebeyondsearch.com/img/ONE_beyond_search%C3%94%C3%87%C3%B4gradient%20%282%29.png", width=250)
 st.title("ONE Redirector – finde die passenden Redirect-Ziele 🔀")
@@ -203,7 +232,9 @@ Auch URLs ohne passenden Treffer werden im Ergebnis mit `"No Match"` ausgewiesen
 ---
 """)
 
+# -----------------------------
 # Datei-Upload
+# -----------------------------
 st.subheader("1. Dateien hochladen")
 uploaded_old = st.file_uploader("Datei mit den URLs, die weitergeleitet werden sollen (CSV oder Excel)", type=["csv", "xlsx"], key="old")
 uploaded_new = st.file_uploader("Datei mit den Ziel-URLs (CSV oder Excel)", type=["csv", "xlsx"], key="new")
@@ -234,7 +265,9 @@ if uploaded_old and uploaded_new:
     df_old = df_old.rename(columns={old_url_col: "Address"})
     df_new = df_new.rename(columns={new_url_col: "Address"})
 
+    # -----------------------------
     # Matching Methode wählen
+    # -----------------------------
     st.subheader("2. Matching Methode wählen")
     matching_method = st.selectbox("Wie möchtest du matchen?", [
         "Exact Match",
@@ -242,7 +275,9 @@ if uploaded_old and uploaded_new:
         "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)"
     ])
 
-    # Embedding-Quelle nur anzeigen, wenn semantisches Matching
+    # -----------------------------
+    # Embedding-Quelle (nur bei semantisch)
+    # -----------------------------
     if matching_method != "Exact Match":
         st.subheader("3. Embedding-Quelle")
         embedding_choice = st.radio(
@@ -263,15 +298,17 @@ if uploaded_old and uploaded_new:
         embedding_choice = None
         model_name = None
 
+    # -----------------------------
     # Spaltenauswahl
+    # -----------------------------
     st.subheader("4. Spaltenauswahl")
     common_cols = sorted(list(set(df_old.columns) & set(df_new.columns)))
-    
+
     if matching_method != "Exact Match":
         st.caption("Optional: Du kannst die Auswahl bei Exact Match leer lassen, wenn du nur semantisches Matching durchführen möchtest.")
-    
+
     exact_cols = st.multiselect("Spalten für Exact Match auswählen", common_cols)
-    
+
     if matching_method != "Exact Match":
         if embedding_choice == "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden":
             similarity_cols = st.multiselect(
@@ -279,25 +316,30 @@ if uploaded_old and uploaded_new:
                 common_cols
             )
         elif embedding_choice == "Embeddings sind bereits generiert und in Input-Dateien vorhanden":
-            st.caption("Hinweis: Wenn du die Option Embeddings sind bereits generiert und in Input-Dateien vorhanden ausgewählt hast und kein Exact Match durchführen möchtest, musst du keine Spaltenauswahl vornehmen – das Tool erkennt die Embedding-Spalten automatisch, wenn sie im Spaltennamen 'embedding' enthalten.")
+            st.caption("Hinweis: Wenn du die Option „Embeddings sind bereits generiert und in Input-Dateien vorhanden“ ausgewählt hast und kein Exact Match durchführen möchtest, musst du keine Spaltenauswahl vornehmen – das Tool erkennt die Embedding-Spalten automatisch, wenn sie im Spaltennamen „embedding“ enthalten.")
             similarity_cols = []
         else:
             similarity_cols = []
     else:
         similarity_cols = []
 
+    # -----------------------------
     # Threshold
+    # -----------------------------
     if matching_method != "Exact Match":
         st.subheader("5. Cosine Similarity Schwelle")
         threshold = st.slider("Minimaler Score für semantisches Matching – welchen Schwellenwert an Cosinus Similarity muss eine URL erreichen, um als potentielles Weiterleitungsziel in den Output aufgenommen zu werden", 0.0, 1.0, 0.5, 0.01)
     else:
         threshold = 0.5  # Fallback
 
+    # -----------------------------
+    # Let's Go
+    # -----------------------------
     if st.button("Let's Go", type="primary"):
         results = []
         matched_old = set()
 
-        # 1. Exact Matching
+        # 1) Exact Matching
         for col in exact_cols:
             exact_matches = pd.merge(
                 df_old[["Address", col]],
@@ -315,9 +357,10 @@ if uploaded_old and uploaded_new:
                 })
                 matched_old.add(row["Address_x"])
 
-        # 2. Similarity Matching
+        # 2) Semantisches Matching
         df_remaining = df_old[~df_old['Address'].isin(matched_old)].reset_index(drop=True)
         if matching_method != "Exact Match" and df_remaining.shape[0] > 0:
+            # Branch A: Embeddings on-the-fly
             if embedding_choice == "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden" and similarity_cols:
                 st.write("Erstelle Embeddings mit", model_name)
                 model = SentenceTransformer(model_name.split()[0])
@@ -326,43 +369,43 @@ if uploaded_old and uploaded_new:
                 emb_old = model.encode(df_remaining['text'].tolist(), show_progress_bar=True)
                 emb_new = model.encode(df_new['text'].tolist(), show_progress_bar=True)
 
-                # Wichtig: diese DataFrames für die Ergebnis-Schleife setzen
-                df_remaining_used = df_remaining
-                df_new_used = df_new
+                # DataFrames passend zu den Matrizen
+                df_remaining_used = df_remaining.reset_index(drop=True)
+                df_new_used = df_new.reset_index(drop=True)
 
+            # Branch B: Embeddings via Spalten
             elif embedding_choice == "Embeddings sind bereits generiert und in Input-Dateien vorhanden":
-                # Spalten mit Embeddings finden
                 emb_col_old = pick_embedding_column(df_old)
                 emb_col_new = pick_embedding_column(df_new)
                 if not emb_col_old or not emb_col_new:
                     st.error("Keine gültige Embedding-Spalte gefunden (suche Spaltennamen mit 'embedding').")
                     st.stop()
 
-                # --- OLD: nur die noch nicht gematchten Zeilen verwenden ---
-                mask_old = df_remaining[emb_col_old].apply(lambda v: parse_embedding_cell(v) is not None)
-                df_remaining_used = df_remaining.loc[mask_old].reset_index(drop=True)
+                # OLD: nur verbleibende Zeilen aus df_remaining
+                emb_old_mat, mask_old_valid, dim_old = build_matrix_and_filter(df_remaining, emb_col_old)
+                df_remaining_used = df_remaining.loc[mask_old_valid].reset_index(drop=True)
 
-                # --- NEW: alle Zeilen mit gültigen Embeddings verwenden ---
-                mask_new = df_new[emb_col_new].apply(lambda v: parse_embedding_cell(v) is not None)
-                df_new_used = df_new.loc[mask_new].reset_index(drop=True)
-
-                # Matrizen bauen
-                emb_old_mat = stack_embedding_column(df_remaining_used[emb_col_old])
-                emb_new_mat = stack_embedding_column(df_new_used[emb_col_new])
+                # NEW: alle Zielzeilen
+                emb_new_mat, mask_new_valid, dim_new = build_matrix_and_filter(df_new, emb_col_new)
+                df_new_used = df_new.loc[mask_new_valid].reset_index(drop=True)
 
                 if emb_old_mat is None or emb_new_mat is None:
                     st.error("Konnte Embeddings nicht verarbeiten – bitte Format prüfen (z. B. '[0.1, 0.2, ...]' oder '0.1,0.2,...').")
                     st.stop()
 
-                if emb_old_mat.shape[1] != emb_new_mat.shape[1]:
-                    st.error(f"Embedding-Dimensionen unterscheiden sich (old: {emb_old_mat.shape[1]}, new: {emb_new_mat.shape[1]}). Beide Dateien müssen mit demselben Modell erzeugt sein.")
+                if dim_old != dim_new:
+                    st.error(f"Embedding-Dimensionen unterscheiden sich (old: {dim_old}, new: {dim_new}). Beide Dateien müssen mit demselben Modell erzeugt sein.")
                     st.stop()
 
                 emb_old = emb_old_mat
                 emb_new = emb_new_mat
+
             else:
                 emb_old, emb_new = None, None
+                df_remaining_used = df_remaining
+                df_new_used = df_new
 
+            # Ähnlichkeit berechnen (nur wenn Embeddings vorhanden)
             if emb_old is not None and emb_new is not None:
                 # Guards: keine Ziele oder keine Queries -> nichts tun
                 if emb_new.shape[0] == 0 or (isinstance(df_new_used, pd.DataFrame) and len(df_new_used) == 0):
@@ -373,6 +416,7 @@ if uploaded_old and uploaded_new:
                     if matching_method == "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)":
                         sim_matrix = cosine_similarity(emb_old, emb_new)
                         n_rows = sim_matrix.shape[0]
+                        st.caption(f"🔎 sklearn: similarity range old→new = [{np.min(sim_matrix):.3f}, {np.max(sim_matrix):.3f}]")
                     else:
                         dim = emb_new.shape[1]
                         index = faiss.IndexFlatIP(dim)
@@ -380,7 +424,7 @@ if uploaded_old and uploaded_new:
                         emb_new = emb_new / np.linalg.norm(emb_new, axis=1, keepdims=True)
                         emb_old = emb_old / np.linalg.norm(emb_old, axis=1, keepdims=True)
                         index.add(emb_new.astype('float32'))
-            
+
                         k = min(5, emb_new.shape[0])  # safe: k <= Anzahl Zielvektoren
                         if k == 0:
                             st.warning("Keine Zielvektoren vorhanden – semantisches Matching übersprungen.")
@@ -390,57 +434,68 @@ if uploaded_old and uploaded_new:
                         else:
                             sim_matrix, I = index.search(emb_old.astype('float32'), k=k)
                             n_rows = I.shape[0]
-            
+                            try:
+                                st.caption(f"🔎 FAISS: max top-1 score = {float(np.max(sim_matrix[:,0])):.3f}")
+                            except Exception:
+                                pass
+
+                    # Hinweis, falls Scores < threshold
+                    try:
+                        max_score_overall = float(np.max(sim_matrix)) if sim_matrix is not None else 0.0
+                        if max_score_overall < threshold:
+                            st.warning(f"Alle Similarity-Scores liegen unter der Schwelle {threshold:.2f} (max={max_score_overall:.2f}). Schwelle testweise senken?")
+                    except Exception:
+                        pass
+
                     # Ergebnis-Schleife nur laufen lassen, wenn wir Scores haben
                     for i in range(n_rows):
-                        # Safety: falls df_remaining_used kürzer ist (sollte nicht passieren, aber sicher ist sicher)
+                        # Safety: falls df_remaining_used kürzer ist
                         if i >= len(df_remaining_used):
                             break
-            
+
                         row_result = {"Old URL": df_remaining_used['Address'].iloc[i]}
-            
+
                         if matching_method == "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)":
                             row_scores = sim_matrix[i]
                             top_indices = np.argsort(row_scores)[::-1][:5]
                         else:
                             top_indices = I[i]
                             row_scores = sim_matrix[i]
-            
+
                         rank = 1
                         for j, idx in enumerate(top_indices):
                             # Safety: idx gegen df_new_used-Grenze prüfen
                             if idx >= len(df_new_used):
                                 continue
-            
+
                             try:
                                 # sklearn: row_scores ist 1D über alle NEW-Indices
                                 score = float(row_scores[idx]) if matching_method == "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)" else float(row_scores[j])
                             except (IndexError, ValueError):
                                 continue
-            
+
                             score = round(score, 4)
                             if score < threshold:
                                 continue
-            
+
                             row_result[f"Matched URL {rank}"] = df_new_used['Address'].iloc[idx]
                             row_result[f"Cosine Similarity Score {rank}"] = score
-            
+
                             if rank == 1:
                                 row_result["Match Type"] = f"Similarity ({'sklearn' if matching_method == 'Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)' else 'faiss'})"
-            
+
                             rank += 1
-            
+
                         if rank > 1:
                             results.append(row_result)
 
-
-        # 3. Nicht gematchte ALT-URLs ergänzen
+        # 3) Nicht gematchte ALT-URLs ergänzen
         matched_urls_final = set(r["Old URL"] for r in results)
         unmatched = df_old[~df_old['Address'].isin(matched_urls_final)]
         for _, row in unmatched.iterrows():
             results.append({"Old URL": row['Address'], "Match Type": "No Match"})
 
-        # 4. Ergebnis anzeigen und bereitstellen
+        # 4) Ergebnis anzeigen und bereitstellen
         df_result = pd.DataFrame(results)
         st.subheader("🔽 Ergebnisse")
         st.dataframe(df_result)
