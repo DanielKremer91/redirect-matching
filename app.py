@@ -10,7 +10,7 @@ import base64
 import re
 float_re = re.compile(r'[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?')
 
-def parse_series_to_matrix(series, min_dim=128):
+def parse_series_to_matrix(series, min_dim=128, label=""):
     """
     Robustes Embedding-Parsing:
     - zieht nur echte Zahlen (ignoriert [], Whitespace, Newlines, trailing Kommas)
@@ -19,15 +19,19 @@ def parse_series_to_matrix(series, min_dim=128):
     - gibt (np.ndarray[n_rows, dim], index_liste) zurück
     """
     vecs, idxs = [], []
+    dropped = 0
     for idx, val in series.items():
         if pd.isna(val):
+            dropped += 1
             continue
         nums = float_re.findall(str(val))
         if len(nums) < min_dim:
+            dropped += 1
             continue
         try:
             arr = np.array([float(x) for x in nums], dtype="float32")
         except ValueError:
+            dropped += 1
             continue
         vecs.append(arr); idxs.append(idx)
 
@@ -36,10 +40,20 @@ def parse_series_to_matrix(series, min_dim=128):
 
     dim = max(len(v) for v in vecs)
     keep = [(i, v) for i, v in zip(idxs, vecs) if len(v) == dim]
+    kept_idx, kept_vec = zip(*keep) if keep else ([], [])
+
+    # Feedback ins Streamlit-Log
+    if dropped > 0 or (len(vecs) != len(keep)):
+        st.warning(
+            f"⚠️ Embedding-Parsing {label}: "
+            f"{dropped + (len(vecs) - len(keep))} von {len(series)} Zeilen "
+            f"mussten verworfen werden (uneinheitliche Länge oder Fehler). "
+            f"Verwendet wurden {len(keep)} Zeilen mit Dimension {dim}."
+        )
+
     if not keep:
         return None, None
 
-    kept_idx, kept_vec = zip(*keep)
     return np.vstack(kept_vec), list(kept_idx)
 
 
