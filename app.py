@@ -85,7 +85,7 @@ st.markdown("""
 ✅ Unterstützt werden CSV und Excel
 ✅ Ideal: **Screaming Frog Crawl-Dateien**
 
-💡 Tipp: Mit einem Custom JavaScript kannst du den für dich relevanten Seiteninhalt extrahieren und für das semantische Matching nutzen oder (Pro-Tipp) direkt im Screaming Frog basierend auf dem extrahierten Content die Embeddings berechnen lassen. Sprich mich gerne an, wenn du das Skript haben möchtest!
+💡 Tipp: Mit einem Custom JavaScript kannst du den für dich relevanten Seiteninhalt extrahieren und für das semantische Matching nutzen oder (Pro-Tipp) direkt im Screaming Frog basierend auf dem extrahierten Content die Embeddings berechnen lassen. Schreib mich bei Fragen hierzu gerne an!
 
 ---
 
