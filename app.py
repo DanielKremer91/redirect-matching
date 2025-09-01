@@ -243,8 +243,8 @@ if uploaded_old and uploaded_new:
         
             elif embedding_choice == "Embeddings sind bereits generiert und in Input-Dateien vorhanden":
                 # Embedding-Spalten explizit wählen (deine Dateien haben beide diesen Namen)
-                emb_col_old = next((c for c in df_old.columns if 'embeddings from page content' in c.lower()), None)
-                emb_col_new = next((c for c in df_new.columns if 'embeddings from page content' in c.lower()), None)
+                emb_col_old = next((c for c in df_old.columns if 'embedding' in c.lower()), None)
+                emb_col_new = next((c for c in df_new.columns if 'embedding' in c.lower()), None)
                 if not emb_col_old or not emb_col_new:
                     st.error("Embedding-Spalte nicht gefunden.")
                     st.stop()
