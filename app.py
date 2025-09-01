@@ -242,14 +242,23 @@ if uploaded_old and uploaded_new:
     # Spaltenauswahl
     st.subheader("4. Spaltenauswahl")
     common_cols = sorted(list(set(df_old.columns) & set(df_new.columns)))
-
+    
     if matching_method != "Exact Match":
         st.caption("Optional: Du kannst die Auswahl bei Exact Match leer lassen, wenn du nur semantisches Matching durchführen möchtest.")
-
+    
     exact_cols = st.multiselect("Spalten für Exact Match auswählen", common_cols)
-
-    if matching_method != "Exact Match" and embedding_choice == "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden":
-        similarity_cols = st.multiselect("Spalten für semantisches Matching auswählen – auf Basis dieser Inhalte werden die Embeddings erstellt und verglichen", common_cols)
+    
+    if matching_method != "Exact Match":
+        if embedding_choice == "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden":
+            similarity_cols = st.multiselect(
+                "Spalten für semantisches Matching auswählen – auf Basis dieser Inhalte werden die Embeddings erstellt und verglichen",
+                common_cols
+            )
+        elif embedding_choice == "Embeddings sind bereits generiert und in Input-Dateien vorhanden":
+            st.caption("Hinweis: Bei dieser Option musst du keine Spalten auswählen – das Tool erkennt die Embedding-Spalten automatisch, wenn sie im Spaltennamen 'embedding' enthalten.")
+            similarity_cols = []
+        else:
+            similarity_cols = []
     else:
         similarity_cols = []
 
