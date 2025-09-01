@@ -95,6 +95,30 @@ def find_column(possible_names, columns):
             return c
     return None
 
+def pick_embedding_column(df: pd.DataFrame):
+    """
+    Wählt unter allen Spalten, deren Name 'embedding' enthält, diejenige aus,
+    die am zuverlässigsten als numerischer Vektor parsebar ist.
+    """
+    candidates = [c for c in df.columns if "embedding" in str(c).lower()]
+    best_col, best_rate, best_dim = None, 0.0, 0
+    for c in candidates:
+        s = df[c].dropna().astype(str).head(200)
+        if s.empty:
+            continue
+        parsed = [parse_embedding_cell(v) for v in s]
+        valid = [v for v in parsed if isinstance(v, np.ndarray) and v.size > 0]
+        if not valid:
+            continue
+        # Konsistenz der Dimension grob prüfen
+        dims = [v.shape[0] for v in valid]
+        dim = max(set(dims), key=dims.count)
+        rate = len(valid) / len(s)
+        # Beste Spalte: höchste Valid-Rate, bei Gleichstand höhere Dim bevorzugen
+        if (rate > best_rate) or (abs(rate - best_rate) < 1e-9 and dim > best_dim):
+            best_col, best_rate, best_dim = c, rate, dim
+    return best_col
+
 # Layout und Branding
 st.set_page_config(page_title="ONE Redirector", layout="wide")
 st.image("https://onebeyondsearch.com/img/ONE_beyond_search%C3%94%C3%87%C3%B4gradient%20%282%29.png", width=250)
@@ -308,8 +332,8 @@ if uploaded_old and uploaded_new:
 
             elif embedding_choice == "Embeddings sind bereits generiert und in Input-Dateien vorhanden":
                 # Spalten mit Embeddings finden
-                emb_col_old = next((col for col in df_old.columns if 'embedding' in col.lower()), None)
-                emb_col_new = next((col for col in df_new.columns if 'embedding' in col.lower()), None)
+                emb_col_old = pick_embedding_column(df_old)
+                emb_col_new = pick_embedding_column(df_new)
                 if not emb_col_old or not emb_col_new:
                     st.error("Keine gültige Embedding-Spalte gefunden (suche Spaltennamen mit 'embedding').")
                     st.stop()
