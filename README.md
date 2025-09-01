@@ -1,4 +1,4 @@
-# 🔀 Semantic Redirect Mapping
+# 🔀 Redirect Mapping Tool
 
 Ein interaktives Tool zur Unterstützung bei Website-Relaunches: Es hilft dir dabei, Weiterleitungen (Redirects) zwischen ALT- und ZIEL-URLs intelligent vorzuschlagen – entweder per **Exact Match** (z. B. identische H1) oder über **semantisches Similarity Matching** mithilfe von **Embeddings**.
 
