@@ -364,53 +364,75 @@ if uploaded_old and uploaded_new:
                 emb_old, emb_new = None, None
 
             if emb_old is not None and emb_new is not None:
-                if matching_method == "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)":
-                    sim_matrix = cosine_similarity(emb_old, emb_new)
+                # Guards: keine Ziele oder keine Queries -> nichts tun
+                if emb_new.shape[0] == 0 or (isinstance(df_new_used, pd.DataFrame) and len(df_new_used) == 0):
+                    st.warning("Es sind keine Ziel-Embeddings verfügbar – semantisches Matching übersprungen.")
+                elif emb_old.shape[0] == 0:
+                    st.warning("Es sind keine Quell-Embeddings verfügbar – semantisches Matching übersprungen.")
                 else:
-                    dim = emb_new.shape[1]
-                    index = faiss.IndexFlatIP(dim)
-                    emb_new = emb_new / np.linalg.norm(emb_new, axis=1, keepdims=True)
-                    emb_old = emb_old / np.linalg.norm(emb_old, axis=1, keepdims=True)
-                    index.add(emb_new.astype('float32'))
-                    k = min(5, len(df_new_used))
-                    sim_matrix, I = index.search(emb_old.astype('float32'), k=k)
-
-                # Ergebnis-Schleife: auf df_remaining_used / df_new_used arbeiten
-                for i in range(len(df_remaining_used)):
-                    row_result = {"Old URL": df_remaining_used['Address'].iloc[i]}
-
                     if matching_method == "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)":
-                        row_scores = sim_matrix[i]
-                        top_indices = np.argsort(row_scores)[::-1][:5]
+                        sim_matrix = cosine_similarity(emb_old, emb_new)
+                        n_rows = sim_matrix.shape[0]
                     else:
-                        top_indices = I[i]
-                        row_scores = sim_matrix[i]
+                        dim = emb_new.shape[1]
+                        index = faiss.IndexFlatIP(dim)
+                        # unit-norm für Cosinus-Ähnlichkeit via Inner Product
+                        emb_new = emb_new / np.linalg.norm(emb_new, axis=1, keepdims=True)
+                        emb_old = emb_old / np.linalg.norm(emb_old, axis=1, keepdims=True)
+                        index.add(emb_new.astype('float32'))
+            
+                        k = min(5, emb_new.shape[0])  # safe: k <= Anzahl Zielvektoren
+                        if k == 0:
+                            st.warning("Keine Zielvektoren vorhanden – semantisches Matching übersprungen.")
+                            sim_matrix = None
+                            I = None
+                            n_rows = 0
+                        else:
+                            sim_matrix, I = index.search(emb_old.astype('float32'), k=k)
+                            n_rows = I.shape[0]
+            
+                    # Ergebnis-Schleife nur laufen lassen, wenn wir Scores haben
+                    for i in range(n_rows):
+                        # Safety: falls df_remaining_used kürzer ist (sollte nicht passieren, aber sicher ist sicher)
+                        if i >= len(df_remaining_used):
+                            break
+            
+                        row_result = {"Old URL": df_remaining_used['Address'].iloc[i]}
+            
+                        if matching_method == "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)":
+                            row_scores = sim_matrix[i]
+                            top_indices = np.argsort(row_scores)[::-1][:5]
+                        else:
+                            top_indices = I[i]
+                            row_scores = sim_matrix[i]
+            
+                        rank = 1
+                        for j, idx in enumerate(top_indices):
+                            # Safety: idx gegen df_new_used-Grenze prüfen
+                            if idx >= len(df_new_used):
+                                continue
+            
+                            try:
+                                # sklearn: row_scores ist 1D über alle NEW-Indices
+                                score = float(row_scores[idx]) if matching_method == "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)" else float(row_scores[j])
+                            except (IndexError, ValueError):
+                                continue
+            
+                            score = round(score, 4)
+                            if score < threshold:
+                                continue
+            
+                            row_result[f"Matched URL {rank}"] = df_new_used['Address'].iloc[idx]
+                            row_result[f"Cosine Similarity Score {rank}"] = score
+            
+                            if rank == 1:
+                                row_result["Match Type"] = f"Similarity ({'sklearn' if matching_method == 'Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)' else 'faiss'})"
+            
+                            rank += 1
+            
+                        if rank > 1:
+                            results.append(row_result)
 
-                    rank = 1
-                    for j, idx in enumerate(top_indices):
-                        if idx >= len(df_new_used):
-                            continue
-
-                        try:
-                            # sklearn: row_scores ist 1D über alle NEW-Indices
-                            score = float(row_scores[idx]) if matching_method == "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)" else float(row_scores[j])
-                        except (IndexError, ValueError):
-                            continue
-
-                        score = round(score, 4)
-                        if score < threshold:
-                            continue
-
-                        row_result[f"Matched URL {rank}"] = df_new_used['Address'].iloc[idx]
-                        row_result[f"Cosine Similarity Score {rank}"] = score
-
-                        if rank == 1:
-                            row_result["Match Type"] = f"Similarity ({'sklearn' if matching_method == 'Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)' else 'faiss'})"
-
-                        rank += 1
-
-                    if rank > 1:
-                        results.append(row_result)
 
         # 3. Nicht gematchte ALT-URLs ergänzen
         matched_urls_final = set(r["Old URL"] for r in results)
