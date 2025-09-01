@@ -112,6 +112,44 @@ Auch URLs ohne passenden Treffer werden im Ergebnis mit "No Match" ausgewiesen.
 ---
 """)
 
+# --- Flexible URL-Spaltenerkennung -> normalisiere auf "Address" ---
+URL_COL_SYNONYMS = [
+    "address", "url", "page", "landing page", "seiten-url", "seite",
+    "ziel-url", "ziel", "canonical", "canonical url"
+]
+
+def _looks_like_url_series(series: pd.Series) -> bool:
+    sample = series.dropna().astype(str).head(50)
+    hits = 0
+    for v in sample:
+        v = v.strip()
+        if v.startswith("http://") or v.startswith("https://") or ("/" in v and "." in v):
+            hits += 1
+    return hits >= max(3, int(len(sample) * 0.2))
+
+def detect_url_column(df: pd.DataFrame) -> str | None:
+    cols = [c.strip() for c in df.columns]
+    lower_map = {c.lower(): c for c in cols}
+    # 1) exakte Synonyme
+    for key in URL_COL_SYNONYMS:
+        if key in lower_map and _looks_like_url_series(df[lower_map[key]]):
+            return lower_map[key]
+    # 2) enthält-Suche
+    for c in cols:
+        if any(k in c.lower() for k in URL_COL_SYNONYMS) and _looks_like_url_series(df[c]):
+            return c
+    # 3) fallback: erste spalte, die wie URL aussieht
+    for c in cols:
+        if _looks_like_url_series(df[c]):
+            return c
+    return None
+
+def normalize_url_column(df: pd.DataFrame) -> pd.DataFrame:
+    url_col = detect_url_column(df)
+    if url_col and url_col != "Address" and "Address" not in df.columns:
+        df = df.rename(columns={url_col: "Address"})
+    return df
+
 # Datei-Upload
 st.subheader("1. Dateien hochladen")
 uploaded_old = st.file_uploader(
@@ -131,6 +169,7 @@ def load_file(uploaded_file):
     else:
         df = pd.read_excel(uploaded_file)
     df.columns = [c.strip() for c in df.columns]
+    df = normalize_url_column(df)  # <- NEU: sorgt dafür, dass es "Address" gibt
     return df
 
 if uploaded_old and uploaded_new:
