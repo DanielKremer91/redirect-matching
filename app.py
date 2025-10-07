@@ -6,55 +6,100 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import faiss
 import base64
+from collections import Counter
 # --- Robustes Parsing für vorhandene Embeddings ---
 import re
 float_re = re.compile(r'[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?')
 
-def parse_series_to_matrix(series, min_dim=128, label=""):
+def parse_series_to_matrix(
+    series,
+    expected_dim: int,
+    allow_padding: bool = True,
+    pad_limit_ratio: float = 0.2,  # max. Anteil fehlender Werte pro Zeile, der gepaddet werden darf
+    label: str = ""
+):
     """
-    Robustes Embedding-Parsing:
-    - zieht nur echte Zahlen (ignoriert [], Whitespace, Newlines, trailing Kommas)
-    - wirft zu kurze/falsche Zeilen weg
-    - vereinheitlicht die Dimension (Zeilen mit abweichender Länge fliegen raus)
-    - gibt (np.ndarray[n_rows, dim], index_liste) zurück
+    - Parsed nur echte Zahlen (ignoriert [], Whitespace, Newlines, Kommas)
+    - Bringt alle Zeilen auf expected_dim:
+        * kürzer -> Padding mit 0 (wenn allow_padding=True und fehlender Anteil <= pad_limit_ratio)
+        * länger -> abschneiden (rechts)
+    - Verwirft Zeilen mit Parsing-Fehlern oder wenn das Padding-Limit überschritten wird
+    - Gibt (np.ndarray[n_rows, expected_dim], index_liste) zurück
     """
     vecs, idxs = [], []
-    dropped = 0
+    dropped_parse = dropped_too_short = dropped_pad_limit = 0
+
     for idx, val in series.items():
         if pd.isna(val):
-            dropped += 1
+            dropped_parse += 1
             continue
+
         nums = float_re.findall(str(val))
-        if len(nums) < min_dim:
-            dropped += 1
+        if not nums:
+            dropped_parse += 1
             continue
+
         try:
             arr = np.array([float(x) for x in nums], dtype="float32")
         except ValueError:
-            dropped += 1
+            dropped_parse += 1
             continue
-        vecs.append(arr); idxs.append(idx)
 
-    if not vecs:
+        L = len(arr)
+        if L == expected_dim:
+            vecs.append(arr); idxs.append(idx)
+        elif L > expected_dim:
+            vecs.append(arr[:expected_dim]); idxs.append(idx)
+        else:
+            missing = expected_dim - L
+            missing_ratio = missing / expected_dim
+            if allow_padding and missing_ratio <= pad_limit_ratio:
+                arr = np.pad(arr, (0, missing), 'constant', constant_values=0.0)
+                vecs.append(arr); idxs.append(idx)
+            else:
+                if missing_ratio > pad_limit_ratio:
+                    dropped_pad_limit += 1
+                else:
+                    dropped_too_short += 1
+
+    used = len(vecs)
+    total = len(series)
+    if used == 0:
         return None, None
 
-    dim = max(len(v) for v in vecs)
-    keep = [(i, v) for i, v in zip(idxs, vecs) if len(v) == dim]
-    kept_idx, kept_vec = zip(*keep) if keep else ([], [])
+    msg = (
+        f"📏 Embedding-Parsing {label}: verwendet={used}/{total}, "
+        f"expected_dim={expected_dim}, padding={'an' if allow_padding else 'aus'}"
+    )
+    detail = []
+    if dropped_parse:     detail.append(f"Parsing-Fehler/leer: {dropped_parse}")
+    if dropped_too_short: detail.append(f"zu kurz (ohne Padding): {dropped_too_short}")
+    if dropped_pad_limit: detail.append(f"Padding-Limit überschritten: {dropped_pad_limit}")
+    if detail:
+        msg += " | verworfen: " + ", ".join(detail)
+    st.info(msg)
 
-    # Feedback ins Streamlit-Log
-    if dropped > 0 or (len(vecs) != len(keep)):
-        st.warning(
-            f"⚠️ Embedding-Parsing {label}: "
-            f"{dropped + (len(vecs) - len(keep))} von {len(series)} Zeilen "
-            f"mussten verworfen werden (uneinheitliche Länge oder Fehler). "
-            f"Verwendet wurden {len(keep)} Zeilen mit Dimension {dim}."
-        )
+    return np.vstack(vecs), list(idxs)
 
-    if not keep:
-        return None, None
+def count_dims(series):
+    dims = []
+    for val in series.dropna():
+        nums = float_re.findall(str(val))
+        dims.append(len(nums))
+    return Counter(dims)
 
-    return np.vstack(kept_vec), list(kept_idx)
+def infer_expected_dim(*series_list):
+    # Häufigste Dimension über alle angegebenen Serien (0 ignorieren).
+    combined = Counter()
+    for s in series_list:
+        combined.update(count_dims(s))
+    if 0 in combined:
+        del combined[0]
+    if not combined:
+        return None
+    mode_count = max(combined.values())
+    candidates = [d for d, c in combined.items() if c == mode_count]
+    return max(candidates)  # bei Gleichstand nimm die größere
 
 
 # Layout und Branding
@@ -249,7 +294,7 @@ if uploaded_old and uploaded_new:
     if matching_method != "Exact Match":
         st.subheader("5. Cosine Similarity Schwelle")
         threshold = st.slider(
-            "Minimaler Score für semantisches Matching – welchen Schwellenwert an Cosinus Similarity muss eine URL erreichen, um als potentielles Weiterleitungsziel in den Output aufgenommen zu werden? Interpretation der Zahlenwerte: Cosine Similartiy von 0 = keine Ähnlichkeit, die URLs sind sich absolut unähnlich; 1 = die URLs sind sich identisch. Empfehlung: Mindestens 0.75 auswählen.",
+            "Minimaler Score für semantisches Matching – welchen Schwellenwert an Cosinus Similarity muss eine URL erreichen, um als potentielles Weiterleitungsziel in den Output aufgenommen zu werden? Interpretation der Zahlenwerte: Cosine Similarity von 0 = keine Ähnlichkeit, die URLs sind sich absolut unähnlich; 1 = die URLs sind sich identisch. Empfehlung: Mindestens 0.75 auswählen.",
             0.0, 1.0, 0.5, 0.01
         )
     else:
@@ -296,22 +341,68 @@ if uploaded_old and uploaded_new:
         
             elif embedding_choice == "Embeddings sind bereits generiert und in Input-Dateien vorhanden":
                 # Embedding-Spalten explizit wählen (deine Dateien haben beide diesen Namen)
-                emb_col_old = next((c for c in df_old.columns if 'embedding' in c.lower()), None)
-                emb_col_new = next((c for c in df_new.columns if 'embedding' in c.lower()), None)
-                if not emb_col_old or not emb_col_new:
-                    st.error("Embedding-Spalte nicht gefunden.")
+                # --- Embedding-Spalten manuell wählen (robuster als Auto-Guess) ---
+                cand_old = [c for c in df_old.columns if 'embed' in c.lower()]
+                cand_new = [c for c in df_new.columns if 'embed' in c.lower()]
+                
+                if not cand_old or not cand_new:
+                    st.error("Keine Embedding-Spalte gefunden. Benenne deine Spalten z. B. 'Embeddings'.")
                     st.stop()
-        
-                # Robustes Parsing + sauberes Alignment
-                emb_old_mat, rows_old = parse_series_to_matrix(df_remaining[emb_col_old])
-                emb_new_mat, rows_new = parse_series_to_matrix(df_new[emb_col_new])
-        
+                
+                emb_col_old = st.selectbox("Embedding-Spalte (OLD)", cand_old, index=0)
+                emb_col_new = st.selectbox("Embedding-Spalte (NEW)", cand_new, index=0)
+                
+                # --- Dimension vorschlagen & UI anbieten ---
+                suggested_dim = infer_expected_dim(df_old[emb_col_old], df_new[emb_col_new])
+                if suggested_dim is None:
+                    st.error("Konnte keine sinnvolle Embedding-Dimension erkennen.")
+                    st.stop()
+                
+                st.caption(f"Erkannte häufigste Dimension: **{suggested_dim}**")
+                expected_dim = st.number_input(
+                    "Expected Embedding Dimension",
+                    min_value=8, max_value=4096, value=int(suggested_dim), step=8,
+                    help="Trage hier die Modell-Dimension ein (z. B. 768 für MiniLM)."
+                )
+                
+                allow_padding = st.checkbox(
+                    "Fehlende Werte mit 0 auffüllen (Padding) – empfohlen, wenn alle Embeddings aus derselben Pipeline stammen",
+                    value=True
+                )
+                pad_limit_ratio = st.slider(
+                    "Max. Anteil fehlender Werte pro Zeile, der gepaddet werden darf",
+                    min_value=0.0, max_value=0.9, value=0.2, step=0.05,
+                    help="Beispiel: 0.2 erlaubt bis zu 20 % Padding pro Zeile."
+                )
+                
+                # --- Diagnose-Report (optional) ---
+                with st.expander("Embedding-Dimensionen anzeigen (Diagnose)"):
+                    st.write("OLD dims:", dict(count_dims(df_old[emb_col_old])))
+                    st.write("NEW dims:", dict(count_dims(df_new[emb_col_new])))
+                
+                # --- Parsing + Alignment mit Padding/Truncation ---
+                emb_old_mat, rows_old = parse_series_to_matrix(
+                    df_remaining[emb_col_old],
+                    expected_dim=int(expected_dim),
+                    allow_padding=allow_padding,
+                    pad_limit_ratio=float(pad_limit_ratio),
+                    label="OLD"
+                )
+                emb_new_mat, rows_new = parse_series_to_matrix(
+                    df_new[emb_col_new],
+                    expected_dim=int(expected_dim),
+                    allow_padding=allow_padding,
+                    pad_limit_ratio=float(pad_limit_ratio),
+                    label="NEW"
+                )
+                
                 if emb_old_mat is None or emb_new_mat is None:
                     st.error("Embeddings konnten nicht zuverlässig geparst werden.")
                     st.stop()
-        
+                
                 df_remaining_used = df_remaining.iloc[rows_old].reset_index(drop=True)
-                df_new_used = df_new.iloc[rows_new].reset_index(drop=True)
+                df_new_used       = df_new.iloc[rows_new].reset_index(drop=True)
+
         
             # --- Ähnlichkeits-Berechnung nur, wenn befüllt ---
             if emb_old_mat is not None and emb_new_mat is not None:
