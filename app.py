@@ -281,6 +281,54 @@ if uploaded_old and uploaded_new:
     if matching_method != "Exact Match":
         st.caption("Optional: Du kannst die Auswahl bei Exact Match leer lassen, wenn du nur semantisches Matching durchführen möchtest.")
     exact_cols = st.multiselect("Spalten für Exact Match auswählen", common_cols)
+    # --- Embedding-Spaltenauswahl vorziehen, falls bereits vorhandene Embeddings genutzt werden ---
+    if matching_method != "Exact Match" and embedding_choice == "Embeddings sind bereits generiert und in Input-Dateien vorhanden":
+        st.markdown("#### Embedding-Spaltenauswahl")
+    
+        cand_old = [c for c in df_old.columns if 'embed' in c.lower()]
+        cand_new = [c for c in df_new.columns if 'embed' in c.lower()]
+    
+        if not cand_old or not cand_new:
+            st.error("Keine Embedding-Spalte gefunden. Benenne deine Spalten z. B. 'Embeddings'.")
+            st.stop()
+    
+        emb_col_old = st.selectbox("Embedding-Spalte (OLD)", cand_old, index=0)
+        emb_col_new = st.selectbox("Embedding-Spalte (NEW)", cand_new, index=0)
+    
+        # Dimension erkennen & Eingabe anbieten
+        suggested_dim = infer_expected_dim(df_old[emb_col_old], df_new[emb_col_new])
+        if suggested_dim is None:
+            st.warning("Konnte keine sinnvolle Embedding-Dimension erkennen. Bitte gib sie manuell an.")
+            suggested_dim = 768
+    
+        st.caption(f"Erkannte häufigste Dimension: **{suggested_dim}**")
+        expected_dim = st.number_input(
+            "Expected Embedding Dimension",
+            min_value=8, max_value=4096, value=int(suggested_dim), step=8,
+            help="Trage hier die Modell-Dimension ein (z. B. 768 für MiniLM)."
+        )
+    
+        allow_padding = st.checkbox(
+            "Fehlende Werte mit 0 auffüllen (Padding) – empfohlen, wenn alle Embeddings aus derselben Pipeline stammen",
+            value=True
+        )
+        pad_limit_ratio = st.slider(
+            "Max. Anteil fehlender Werte pro Zeile, der gepaddet werden darf",
+            min_value=0.0, max_value=0.9, value=0.2, step=0.05,
+            help="Beispiel: 0.2 = 20 % Padding pro Zeile."
+        )
+    
+        with st.expander("Embedding-Dimensionen anzeigen (Diagnose)"):
+            st.write("OLD dims:", dict(count_dims(df_old[emb_col_old])))
+            st.write("NEW dims:", dict(count_dims(df_new[emb_col_new])))
+    else:
+        emb_col_old = None
+        emb_col_new = None
+        expected_dim = None
+        allow_padding = True
+        pad_limit_ratio = 0.2
+
+
 
     if matching_method != "Exact Match" and embedding_choice == "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden":
         similarity_cols = st.multiselect(
@@ -340,47 +388,11 @@ if uploaded_old and uploaded_new:
                 emb_new_mat = model.encode(df_new_used['text'].tolist(), show_progress_bar=True)
         
             elif embedding_choice == "Embeddings sind bereits generiert und in Input-Dateien vorhanden":
-                # Embedding-Spalten explizit wählen (deine Dateien haben beide diesen Namen)
-                # --- Embedding-Spalten manuell wählen (robuster als Auto-Guess) ---
-                cand_old = [c for c in df_old.columns if 'embed' in c.lower()]
-                cand_new = [c for c in df_new.columns if 'embed' in c.lower()]
-                
-                if not cand_old or not cand_new:
-                    st.error("Keine Embedding-Spalte gefunden. Benenne deine Spalten z. B. 'Embeddings'.")
+                if not emb_col_old or not emb_col_new or expected_dim is None:
+                    st.error("Bitte oben die Embedding-Spalten & die Dimension auswählen.")
                     st.stop()
-                
-                emb_col_old = st.selectbox("Embedding-Spalte (OLD)", cand_old, index=0)
-                emb_col_new = st.selectbox("Embedding-Spalte (NEW)", cand_new, index=0)
-                
-                # --- Dimension vorschlagen & UI anbieten ---
-                suggested_dim = infer_expected_dim(df_old[emb_col_old], df_new[emb_col_new])
-                if suggested_dim is None:
-                    st.error("Konnte keine sinnvolle Embedding-Dimension erkennen.")
-                    st.stop()
-                
-                st.caption(f"Erkannte häufigste Dimension: **{suggested_dim}**")
-                expected_dim = st.number_input(
-                    "Expected Embedding Dimension",
-                    min_value=8, max_value=4096, value=int(suggested_dim), step=8,
-                    help="Trage hier die Modell-Dimension ein (z. B. 768 für MiniLM)."
-                )
-                
-                allow_padding = st.checkbox(
-                    "Fehlende Werte mit 0 auffüllen (Padding) – empfohlen, wenn alle Embeddings aus derselben Pipeline stammen",
-                    value=True
-                )
-                pad_limit_ratio = st.slider(
-                    "Max. Anteil fehlender Werte pro Zeile, der gepaddet werden darf",
-                    min_value=0.0, max_value=0.9, value=0.2, step=0.05,
-                    help="Beispiel: 0.2 erlaubt bis zu 20 % Padding pro Zeile."
-                )
-                
-                # --- Diagnose-Report (optional) ---
-                with st.expander("Embedding-Dimensionen anzeigen (Diagnose)"):
-                    st.write("OLD dims:", dict(count_dims(df_old[emb_col_old])))
-                    st.write("NEW dims:", dict(count_dims(df_new[emb_col_new])))
-                
-                # --- Parsing + Alignment mit Padding/Truncation ---
+
+            
                 emb_old_mat, rows_old = parse_series_to_matrix(
                     df_remaining[emb_col_old],
                     expected_dim=int(expected_dim),
@@ -395,13 +407,14 @@ if uploaded_old and uploaded_new:
                     pad_limit_ratio=float(pad_limit_ratio),
                     label="NEW"
                 )
-                
+            
                 if emb_old_mat is None or emb_new_mat is None:
                     st.error("Embeddings konnten nicht zuverlässig geparst werden.")
                     st.stop()
-                
+            
                 df_remaining_used = df_remaining.iloc[rows_old].reset_index(drop=True)
                 df_new_used       = df_new.iloc[rows_new].reset_index(drop=True)
+
 
         
             # --- Ähnlichkeits-Berechnung nur, wenn befüllt ---
