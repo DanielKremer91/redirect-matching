@@ -136,10 +136,11 @@ st.markdown("""
 
 **Modelle zur Embedding-Erstellung:**
 Wenn du Embeddings **automatisch im Tool erstellen** lässt, stehen dir folgende Modelle zur Auswahl:
-- all-MiniLM-L6-v2 (Standard) – sehr schnell, solide Semantik
-- all-MiniLM-L12-v2 – gründlicher, aber immer noch schnell
+- all-MiniLM-L6-v2 (Standard) – sehr schnell, solide semantische Ergebnisse (ideal für große Projekte mit vielen URLs)
+- all-MiniLM-L12-v2 – gründlicher, aber immer noch performant (besseres Sprachverständnis, etwas langsamer)
+- all-mpnet-base-v2 – höchstmögliche Genauigkeit, versteht Inhalte und Kontexte besonders präzise ((empfohlen für kleinere bis mittlere Projekte, bei denen Qualität vor Geschwindigkeit geht)
 
-Beide Modelle stammen aus der sentence-transformers-Bibliothek.
+Alle Modelle stammen aus der sentence-transformers-Bibliothek und laufen komplett lokal – ohne API oder zusätzliche Kosten.
 
 **Wenn du bereits Embeddings in deinen Dateien zur Verfügung stellst**, wird **kein Modell im Tool geladen**. Das Matching erfolgt dann direkt auf Basis deiner Vektoren – unabhängig davon, mit welchem Modell du sie erzeugt hast. Wichtig ist nur:
 👉 **Beide Dateien müssen mit demselben Modell verarbeitet worden sein** und die Embeddings müssen korrekt formatiert vorliegen.
@@ -263,11 +264,13 @@ if uploaded_old and uploaded_new:
         if embedding_choice == "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden":
             model_label = st.selectbox(
                 "Welches Modell zur Embedding-Generierung soll verwendet werden?",
-                sorted([
-                    "all-MiniLM-L6-v2 (sehr schnell, gründlich)",
-                    "all-MiniLM-L12-v2 (schnell, gründlicher)"
-                ])
+                [
+                    "all-MiniLM-L6-v2 (sehr schnell, solide Semantik)",
+                    "all-MiniLM-L12-v2 (schnell, gründlicher)",
+                    "all-mpnet-base-v2 (präziser, aber langsamer)"
+                ]
             )
+
             model_name = model_label
         else:
             model_name = None
@@ -382,6 +385,10 @@ if uploaded_old and uploaded_new:
             if embedding_choice == "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden" and similarity_cols:
                 st.write("Erstelle Embeddings mit", model_name)
                 model = SentenceTransformer(model_name.split()[0])
+
+                expected_dim = model.get_sentence_embedding_dimension()
+                st.caption(f"Embedding-Dimension des gewählten Modells: **{expected_dim}**")
+
                 df_remaining_used['text'] = df_remaining_used[similarity_cols].fillna('').agg(' '.join, axis=1)
                 df_new_used['text'] = df_new_used[similarity_cols].fillna('').agg(' '.join, axis=1)
                 emb_old_mat = model.encode(df_remaining_used['text'].tolist(), show_progress_bar=True)
