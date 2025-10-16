@@ -104,7 +104,14 @@ def infer_expected_dim(*series_list):
 
 # Layout und Branding
 st.set_page_config(page_title="ONE Redirector", layout="wide")
-st.image("https://onebeyondsearch.com/img/ONE_beyond_search%C3%94%C3%87%C3%B4gradient%20%282%29.png", width=250)
+# --- Logos nebeneinander ---
+st.markdown("""
+<div style="display: flex; align-items: center; gap: 20px;">
+  <img src="https://onebeyondsearch.com/img/ONE_beyond_search%C3%94%C3%87%C3%B4gradient%20%282%29.png" alt="ONE Beyond Search" style="height: 60px;">
+  <img src="https://www.seo-trainee.de/wp-content/uploads/2025/07/seokomm.png" alt="SEOKomm" style="height: 60px;">
+</div>
+""", unsafe_allow_html=True)
+
 st.title("ONE Redirector – finde die passenden Redirect-Ziele 🔀")
 st.markdown("""
 <div style="background-color: #f2f2f2; color: #000000; padding: 15px 20px; border-radius: 6px; font-size: 0.9em; max-width: 600px; margin-bottom: 1.5em; line-height: 1.5;">
