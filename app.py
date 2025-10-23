@@ -7,15 +7,18 @@ from sklearn.metrics.pairwise import cosine_similarity
 import faiss
 import base64
 from collections import Counter
-# --- Robustes Parsing für vorhandene Embeddings ---
 import re
+
+# -----------------------------
+# Parsing / Utility-Funktionen
+# -----------------------------
 float_re = re.compile(r'[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?')
 
 def parse_series_to_matrix(
     series,
     expected_dim: int,
     allow_padding: bool = True,
-    pad_limit_ratio: float = 0.2,  # max. Anteil fehlender Werte pro Zeile, der gepaddet werden darf
+    pad_limit_ratio: float = 0.2,
     label: str = ""
 ):
     """
@@ -101,10 +104,12 @@ def infer_expected_dim(*series_list):
     candidates = [d for d, c in combined.items() if c == mode_count]
     return max(candidates)  # bei Gleichstand nimm die größere
 
-
-# Layout und Branding
+# -----------------------------
+# Streamlit Grundlayout
+# -----------------------------
 st.set_page_config(page_title="ONE Redirector", layout="wide")
-# --- Logos nebeneinander ---
+
+# Logos
 st.markdown("""
 <div style="display: flex; align-items: center; gap: 20px;">
   <img src="https://onebeyondsearch.com/img/ONE_beyond_search%C3%94%C3%87%C3%B4gradient%20%282%29.png" alt="ONE Beyond Search" style="height: 60px;">
@@ -113,73 +118,59 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("ONE Redirector – finde die passenden Redirect-Ziele 🔀")
-st.markdown("""
-<div style="background-color: #f2f2f2; color: #000000; padding: 15px 20px; border-radius: 6px; font-size: 0.9em; max-width: 600px; margin-bottom: 1.5em; line-height: 1.5;">
-Entwickelt von <a href="https://www.linkedin.com/in/daniel-kremer-b38176264/" target="_blank">Daniel Kremer</a> von <a href="https://onebeyondsearch.com/" target="_blank">ONE Beyond Search</a> &nbsp;|&nbsp; Folge mir auf <a href="https://www.linkedin.com/in/daniel-kremer-b38176264/" target="_blank">LinkedIn</a>
-</div>
-<hr>
-""", unsafe_allow_html=True)
 
-# Erklärtext
-st.markdown("""
-### Was macht der ONE Redirector?
+# -----------------------------
+# Eingeklappter Erklär-/Hilfetext
+# -----------------------------
+with st.expander("ℹ️ Was macht das Tool? (Erklärung & Tipps)", expanded=False):
+    st.markdown("""
 **Ziel:** Dieses Tool hilft dir dabei, bei **Relaunches** oder **Domain-Migrationen** passende Redirect-Ziele auf Knopfdruck zu finden.
 
 ---
 
 **Vorgehen:** Du hast die Wahl zwischen zwei Matching-Ansätzen:
-- **Exact Matching** 1:1-Abgleich auf Basis identischer Inhalte in ausgewählten Spalten *(z. B. identische H1, Meta Title, etc.)*
-- **Semantisches Matching** Zuordnung auf Basis **inhaltlicher Ähnlichkeit**. Grundlage: **Vektor-Embeddings**, die du entweder bereitstellst oder automatisch erstellen lässt.
+- **Exact Matching** – 1:1-Abgleich auf Basis identischer Inhalte in ausgewählten Spalten *(z. B. identische H1, Meta Title)*
+- **Semantisches Matching** – Zuordnung auf Basis **inhaltlicher Ähnlichkeit**. Grundlage: **Vektor-Embeddings**, die du entweder bereitstellst oder automatisch erstellen lässt.
+
+**Was wird benötigt?** Lade zwei Dateien hoch – jeweils mit den URLs deiner alten und neuen Domain.  
+✅ CSV & Excel werden unterstützt (ideal: Screaming Frog Crawls)
+
+💡 Tipp: Mit einem Custom JavaScript kannst du relevanten Seiteninhalt extrahieren und für das semantische Matching nutzen oder (Pro-Tipp) direkt im Screaming Frog basierend auf dem Inhalt die Embeddings berechnen lassen.
 
 ---
 
-**Was wird von dir benötigt?** Lade zwei Dateien hoch – jeweils mit den URLs deiner alten und neuen Domain.
-✅ Unterstützt werden CSV und Excel
-✅ Ideal: **Screaming Frog Crawl-Dateien**
+**Modelle zur Embedding-Erstellung (lokal, ohne API):**
+- `all-MiniLM-L6-v2` – sehr schnell, solide Semantik (für große Projekte)
+- `all-MiniLM-L12-v2` – gründlicher bei guter Geschwindigkeit
+- `all-mpnet-base-v2` – höchste Genauigkeit (für kleinere/mittlere Projekte)
 
-💡 Tipp: Mit einem Custom JavaScript kannst du den für dich relevanten Seiteninhalt extrahieren und für das semantische Matching nutzen oder (Pro-Tipp) direkt im Screaming Frog basierend auf dem extrahierten Content die Embeddings berechnen lassen. Schreib mich bei Fragen hierzu gerne an!
-
----
-
-**Modelle zur Embedding-Erstellung:**
-Wenn du Embeddings **automatisch im Tool erstellen** lässt, stehen dir folgende Modelle zur Auswahl:
-- all-MiniLM-L6-v2 (Standard) – sehr schnell, solide semantische Ergebnisse (ideal für große Projekte mit vielen URLs)
-- all-MiniLM-L12-v2 – gründlicher, aber immer noch performant (besseres Sprachverständnis, etwas langsamer)
-- all-mpnet-base-v2 – höchstmögliche Genauigkeit, versteht Inhalte und Kontexte besonders präzise ((empfohlen für kleinere bis mittlere Projekte, bei denen Qualität vor Geschwindigkeit geht)
-
-Alle Modelle stammen aus der sentence-transformers-Bibliothek und laufen komplett lokal – ohne API oder zusätzliche Kosten.
-
-**Wenn du bereits Embeddings in deinen Dateien zur Verfügung stellst**, wird **kein Modell im Tool geladen**. Das Matching erfolgt dann direkt auf Basis deiner Vektoren – unabhängig davon, mit welchem Modell du sie erzeugt hast. Wichtig ist nur:
-👉 **Beide Dateien müssen mit demselben Modell verarbeitet worden sein** und die Embeddings müssen korrekt formatiert vorliegen.
+Wenn Embeddings **bereits in deinen Dateien** vorliegen, lädt das Tool **kein Modell**. Wichtig: **Beide Dateien müssen mit demselben Modell** erzeugt worden sein.
 
 ---
 
-**Unterschied: FAISS vs. sklearn (für semantisches Matching)**
+**FAISS vs. sklearn (semantisches Matching)**
 
 | Methode | Geschwindigkeit | Genauigkeit | Ideal für |
 |-------------|------------------|------------------|------------------------|
 | **FAISS** | Sehr hoch | ~90–95 % | Große Projekte (ab ca. 2.000 URLs) |
 | **sklearn** | Langsamer | 100 % exakt | Kleine bis mittlere Projekte |
 
-- **FAISS** nutzt Approximate Nearest Neighbor Search – extrem schnell, ideal für große Datenmengen, aber leicht ungenau
-- **sklearn** berechnet exakte Cosine Similarity – sehr gründlich, aber bei vielen URLs langsam und speicherintensiv
+- **FAISS IVF Flat** nutzt Approximate Neighbor Search – extrem schnell, aber leicht ungenau.
+- **sklearn** berechnet exakte Cosine Similarity – gründlich, aber bei großen Datenmengen langsamer.
 
----
-
-**Output:** Du erhältst eine **CSV-Datei** mit bis zu **5 passenden Redirect-Zielen** (inkl. Score)
-Auch URLs ohne passenden Treffer werden im Ergebnis mit "No Match" ausgewiesen.
-
----
+**Output:** CSV mit bis zu 5 passenden Redirect-Zielen (inkl. Score).  
+Nicht gematchte ALT-URLs werden mit „No Match“ ausgewiesen.
 
 **Weitere Features:**
 - Flexible Spaltenauswahl für Exact und/oder semantisches Matching
 - Manuell einstellbarer **Similarity Threshold**
 - Unterstützung von vorberechneten Embeddings
-- Keine Blackbox: Alle Entscheidungen und Scores sind im Ergebnis nachvollziehbar
----
-""")
+- Nachvollziehbare Entscheidungen & Scores
+    """)
 
-# --- Flexible URL-Spaltenerkennung -> normalisiere auf "Address" ---
+# -----------------------------
+# URL-Spaltenerkennung & Normalisierung
+# -----------------------------
 URL_COL_SYNONYMS = [
     "address", "url", "page", "landing page", "seiten-url", "seite",
     "ziel-url", "ziel", "canonical", "canonical url"
@@ -217,7 +208,18 @@ def normalize_url_column(df: pd.DataFrame) -> pd.DataFrame:
         df = df.rename(columns={url_col: "Address"})
     return df
 
+def load_file(uploaded_file):
+    if uploaded_file.name.endswith(".csv"):
+        df = pd.read_csv(uploaded_file, encoding="utf-8-sig")
+    else:
+        df = pd.read_excel(uploaded_file)
+    df.columns = [c.strip() for c in df.columns]
+    df = normalize_url_column(df)
+    return df
+
+# -----------------------------
 # Datei-Upload
+# -----------------------------
 st.subheader("1. Dateien hochladen")
 uploaded_old = st.file_uploader(
     "Datei mit den URLs, die weitergeleitet werden sollen (CSV oder Excel)",
@@ -230,15 +232,6 @@ uploaded_new = st.file_uploader(
     key="new"
 )
 
-def load_file(uploaded_file):
-    if uploaded_file.name.endswith(".csv"):
-        df = pd.read_csv(uploaded_file, encoding="utf-8-sig")
-    else:
-        df = pd.read_excel(uploaded_file)
-    df.columns = [c.strip() for c in df.columns]
-    df = normalize_url_column(df)  # <- NEU: sorgt dafür, dass es "Address" gibt
-    return df
-
 if uploaded_old and uploaded_new:
     df_old = load_file(uploaded_old)
     df_new = load_file(uploaded_new)
@@ -247,8 +240,10 @@ if uploaded_old and uploaded_new:
         st.error("Beide Dateien müssen eine 'Address'-Spalte enthalten.")
         st.stop()
 
-    # Matching Methode wählen
-    st.subheader("2. Matching Methode wählen")
+    # -----------------------------
+    # Matching-Methode
+    # -----------------------------
+    st.subheader("2. Matching-Methode wählen")
     matching_method = st.selectbox(
         "Wie möchtest du matchen?",
         [
@@ -258,11 +253,13 @@ if uploaded_old and uploaded_new:
         ]
     )
 
-    # Embedding-Quelle nur anzeigen, wenn semantisches Matching
+    # -----------------------------
+    # Embedding-Quelle (nur bei semantisch)
+    # -----------------------------
     if matching_method != "Exact Match":
         st.subheader("3. Embedding-Quelle")
         embedding_choice = st.radio(
-            "Stellst du die Embeddings für das semantische Matching in deinen Input-Dateien bereits zur Verfügung oder müssen diese erst noch generiert werden?",
+            "Stellst du die Embeddings bereits zur Verfügung oder sollen sie erstellt werden?",
             ["Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden",
              "Embeddings sind bereits generiert und in Input-Dateien vorhanden"]
         )
@@ -277,47 +274,49 @@ if uploaded_old and uploaded_new:
                     "all-mpnet-base-v2 (präziser, aber langsamer)"
                 ]
             )
-
-            model_name = model_label
+            # erster Token = eigentlicher Modellname
+            model_name = model_label.split()[0]
         else:
             model_name = None
     else:
         embedding_choice = None
         model_name = None
 
+    # -----------------------------
     # Spaltenauswahl
+    # -----------------------------
     st.subheader("4. Spaltenauswahl")
     common_cols = sorted(list(set(df_old.columns) & set(df_new.columns)))
     if matching_method != "Exact Match":
         st.caption("Optional: Du kannst die Auswahl bei Exact Match leer lassen, wenn du nur semantisches Matching durchführen möchtest.")
     exact_cols = st.multiselect("Spalten für Exact Match auswählen", common_cols)
-    # --- Embedding-Spaltenauswahl vorziehen, falls bereits vorhandene Embeddings genutzt werden ---
+
+    # Embedding-Spaltenauswahl (falls bereits vorhandene Embeddings)
     if matching_method != "Exact Match" and embedding_choice == "Embeddings sind bereits generiert und in Input-Dateien vorhanden":
         st.markdown("#### Embedding-Spaltenauswahl")
-    
         cand_old = [c for c in df_old.columns if 'embed' in c.lower()]
         cand_new = [c for c in df_new.columns if 'embed' in c.lower()]
-    
+
         if not cand_old or not cand_new:
             st.error("Keine Embedding-Spalte gefunden. Benenne deine Spalten z. B. 'Embeddings'.")
             st.stop()
-    
+
         emb_col_old = st.selectbox("Embedding-Spalte (OLD)", cand_old, index=0)
         emb_col_new = st.selectbox("Embedding-Spalte (NEW)", cand_new, index=0)
-    
+
         # Dimension erkennen & Eingabe anbieten
         suggested_dim = infer_expected_dim(df_old[emb_col_old], df_new[emb_col_new])
         if suggested_dim is None:
             st.warning("Konnte keine sinnvolle Embedding-Dimension erkennen. Bitte gib sie manuell an.")
             suggested_dim = 768
-    
+
         st.caption(f"Erkannte häufigste Dimension: **{suggested_dim}**")
         expected_dim = st.number_input(
             "Expected Embedding Dimension",
             min_value=8, max_value=4096, value=int(suggested_dim), step=8,
             help="Trage hier die Modell-Dimension ein (z. B. 768 für MiniLM)."
         )
-    
+
         allow_padding = st.checkbox(
             "Fehlende Werte mit 0 auffüllen (Padding) – empfohlen, wenn alle Embeddings aus derselben Pipeline stammen",
             value=True
@@ -327,7 +326,7 @@ if uploaded_old and uploaded_new:
             min_value=0.0, max_value=0.9, value=0.2, step=0.05,
             help="Beispiel: 0.2 = 20 % Padding pro Zeile."
         )
-    
+
         with st.expander("Embedding-Dimensionen anzeigen (Diagnose)"):
             st.write("OLD dims:", dict(count_dims(df_old[emb_col_old])))
             st.write("NEW dims:", dict(count_dims(df_new[emb_col_new])))
@@ -338,8 +337,7 @@ if uploaded_old and uploaded_new:
         allow_padding = True
         pad_limit_ratio = 0.2
 
-
-
+    # Textspalten für On-the-fly-Embeddings
     if matching_method != "Exact Match" and embedding_choice == "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden":
         similarity_cols = st.multiselect(
             "Spalten für semantisches Matching auswählen – auf Basis dieser Inhalte werden die Embeddings erstellt und verglichen",
@@ -348,21 +346,54 @@ if uploaded_old and uploaded_new:
     else:
         similarity_cols = []
 
+    # -----------------------------
+    # FAISS IVF Einstellungen (nur wenn FAISS gewählt)
+    # -----------------------------
+    use_faiss_ivf = False
+    faiss_nlist = 0
+    faiss_nprobe = 0
+    if matching_method.startswith("Semantisches Matching mit FAISS"):
+        st.markdown("#### FAISS Einstellungen")
+        use_faiss_ivf = st.checkbox(
+            "IVF Flat verwenden (empfohlen ab ~2.000 Ziel-URLs)",
+            value=True,
+            help="Approximate Neighbor Search mit Clustering. Liefert sehr schnelle Suche bei großen Korpora."
+        )
+        # sinnvolle Defaults: ~2*sqrt(N), geclippt
+        est_nlist = int(np.clip(int(np.sqrt(max(1, len(df_new))) * 2), 100, 16384))
+        faiss_nlist = st.number_input(
+            "nlist (Anzahl Cluster)",
+            min_value=1, max_value=16384, value=est_nlist, step=1,
+            help="Mehr Cluster = feinere Vorselektion, mehr Speicher/Trainingszeit."
+        )
+        # nprobe-Default ca. 10% von nlist, max 64
+        default_nprobe = int(np.clip(max(1, faiss_nlist // 10), 1, 64))
+        faiss_nprobe = st.number_input(
+            "nprobe (Cluster pro Suche)",
+            min_value=1, max_value=max(1, faiss_nlist), value=default_nprobe, step=1,
+            help="Mehr nprobe = höherer Recall, aber langsamer."
+        )
+
+    # -----------------------------
     # Threshold
+    # -----------------------------
     if matching_method != "Exact Match":
         st.subheader("5. Cosine Similarity Schwelle")
         threshold = st.slider(
-            "Minimaler Score für semantisches Matching – welchen Schwellenwert an Cosinus Similarity muss eine URL erreichen, um als potentielles Weiterleitungsziel in den Output aufgenommen zu werden? Interpretation der Zahlenwerte: Cosine Similarity von 0 = keine Ähnlichkeit, die URLs sind sich absolut unähnlich; 1 = die URLs sind sich identisch. Empfehlung: Mindestens 0.75 auswählen.",
+            "Minimaler Score für semantisches Matching – Empfehlung: mind. 0.75",
             0.0, 1.0, 0.5, 0.01
         )
     else:
         threshold = 0.5  # Fallback
 
+    # -----------------------------
+    # Start-Button
+    # -----------------------------
     if st.button("Let's Go", type="primary"):
         results = []
         matched_old = set()
 
-        # 1. Exact Matching
+        # 1) Exact Matching
         for col in exact_cols:
             exact_matches = pd.merge(
                 df_old[["Address", col]],
@@ -380,33 +411,31 @@ if uploaded_old and uploaded_new:
                 })
                 matched_old.add(row["Address_x"])
 
-        # 2. Similarity Matching
+        # 2) Semantisches Matching (für verbleibende ALT-URLs)
         df_remaining = df_old[~df_old['Address'].isin(matched_old)].reset_index(drop=True)
-        
+
         if matching_method != "Exact Match" and df_remaining.shape[0] > 0:
             emb_old_mat = None
             emb_new_mat = None
-            df_remaining_used = df_remaining
-            df_new_used = df_new
-        
+            df_remaining_used = df_remaining.copy()
+            df_new_used = df_new.copy()
+
             if embedding_choice == "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden" and similarity_cols:
                 st.write("Erstelle Embeddings mit", model_name)
-                model = SentenceTransformer(model_name.split()[0])
-
-                expected_dim = model.get_sentence_embedding_dimension()
-                st.caption(f"Embedding-Dimension des gewählten Modells: **{expected_dim}**")
+                model = SentenceTransformer(model_name)
+                expected_dim_gen = model.get_sentence_embedding_dimension()
+                st.caption(f"Embedding-Dimension des gewählten Modells: **{expected_dim_gen}**")
 
                 df_remaining_used['text'] = df_remaining_used[similarity_cols].fillna('').agg(' '.join, axis=1)
                 df_new_used['text'] = df_new_used[similarity_cols].fillna('').agg(' '.join, axis=1)
                 emb_old_mat = model.encode(df_remaining_used['text'].tolist(), show_progress_bar=True)
                 emb_new_mat = model.encode(df_new_used['text'].tolist(), show_progress_bar=True)
-        
+
             elif embedding_choice == "Embeddings sind bereits generiert und in Input-Dateien vorhanden":
                 if not emb_col_old or not emb_col_new or expected_dim is None:
                     st.error("Bitte oben die Embedding-Spalten & die Dimension auswählen.")
                     st.stop()
 
-            
                 emb_old_mat, rows_old = parse_series_to_matrix(
                     df_remaining[emb_col_old],
                     expected_dim=int(expected_dim),
@@ -421,71 +450,99 @@ if uploaded_old and uploaded_new:
                     pad_limit_ratio=float(pad_limit_ratio),
                     label="NEW"
                 )
-            
+
                 if emb_old_mat is None or emb_new_mat is None:
                     st.error("Embeddings konnten nicht zuverlässig geparst werden.")
                     st.stop()
-            
+
                 df_remaining_used = df_remaining.iloc[rows_old].reset_index(drop=True)
                 df_new_used       = df_new.iloc[rows_new].reset_index(drop=True)
 
-
-        
             # --- Ähnlichkeits-Berechnung nur, wenn befüllt ---
             if emb_old_mat is not None and emb_new_mat is not None:
+                # sklearn-Zweig (exakt)
                 if matching_method == "Semantisches Matching mit sklearn (Arbeitet gründlicher, aber langsamer)":
                     sim_matrix = cosine_similarity(emb_old_mat, emb_new_mat)
-                    # top-k bestimmen per Sortierung
+
                     def get_topk(i):
                         row_scores = sim_matrix[i]
                         top_indices = np.argsort(row_scores)[::-1][:5]
-                        return row_scores, top_indices
+                        return top_indices, row_scores[top_indices]
+
                 else:
-                    dim = emb_new_mat.shape[1]
-                    index = faiss.IndexFlatIP(dim)
-                    emb_new_norm = emb_new_mat / np.linalg.norm(emb_new_mat, axis=1, keepdims=True)
-                    emb_old_norm = emb_old_mat / np.linalg.norm(emb_old_mat, axis=1, keepdims=True)
-                    index.add(emb_new_norm.astype('float32'))
+                    # FAISS (IVF oder Flat)
+                    def _l2norm(x, eps=1e-12):
+                        return x / (np.linalg.norm(x, axis=1, keepdims=True) + eps)
+
+                    emb_new_norm = _l2norm(emb_new_mat).astype("float32")
+                    emb_old_norm = _l2norm(emb_old_mat).astype("float32")
+                    dim = emb_new_norm.shape[1]
                     k = min(5, len(df_new_used))
-                    faiss_scores, I = index.search(emb_old_norm.astype('float32'), k=k)
+
+                    index = None
+                    used_ivf = False
+
+                    # IVF nur, wenn groß genug (Daumenregel) und genügend Daten für Training
+                    if use_faiss_ivf and len(df_new_used) >= max(1000, int(faiss_nlist) * 5):
+                        quantizer = faiss.IndexFlatIP(dim)
+                        index = faiss.IndexIVFFlat(quantizer, dim, int(faiss_nlist), faiss.METRIC_INNER_PRODUCT)
+                        try:
+                            index.train(emb_new_norm)
+                            index.add(emb_new_norm)
+                            index.nprobe = int(min(max(1, int(faiss_nprobe)), int(faiss_nlist)))
+                            used_ivf = True
+                        except Exception as e:
+                            st.warning(f"IVF-Training fehlgeschlagen oder Datensatz zu klein. Fallback auf Flat-IP. Details: {e}")
+                            index = None
+
+                    if index is None:
+                        index = faiss.IndexFlatIP(dim)
+                        index.add(emb_new_norm)
+
+                    faiss_scores, faiss_indices = index.search(emb_old_norm, k=k)
+
                     def get_topk(i):
-                        return faiss_scores[i], I[i]
-        
-                # Ergebnisse einsammeln (nutze *used-DataFrames*)
+                        return faiss_indices[i], faiss_scores[i]
+
+                    # Hinweis, welche Engine aktiv war
+                    if used_ivf:
+                        st.info(f"FAISS IVF Flat aktiv • nlist={int(faiss_nlist)} • nprobe={int(min(max(1, int(faiss_nprobe)), int(faiss_nlist)))} • Korpus={len(df_new_used)}")
+                    else:
+                        st.info(f"FAISS Flat (exakt) aktiv • Korpus={len(df_new_used)}")
+
+                # Ergebnisse einsammeln
                 for i in range(len(df_remaining_used)):
                     row_result = {"Old URL": df_remaining_used['Address'].iloc[i]}
-                    row_scores, top_indices = get_topk(i)
-        
+                    top_indices, top_scores = get_topk(i)
+
                     rank = 1
-                    for j, idx in enumerate(top_indices):
+                    for idx, score in zip(top_indices, top_scores):
                         if idx >= len(df_new_used):
                             continue
-                        # Score-Auswahl: sklearn vs. faiss
-                        if matching_method.startswith("Semantisches Matching mit sklearn"):
-                            score = float(row_scores[idx])
-                        else:
-                            score = float(row_scores[j])
-        
+                        score = float(score)
                         if score < threshold:
                             continue
-        
+
                         row_result[f"Matched URL {rank}"] = df_new_used['Address'].iloc[idx]
                         row_result[f"Cosine Similarity Score {rank}"] = round(score, 4)
                         if rank == 1:
-                            row_result["Match Type"] = f"Similarity ({'sklearn' if matching_method.startswith('Semantisches Matching mit sklearn') else 'faiss'})"
+                            if matching_method.startswith("Semantisches Matching mit sklearn"):
+                                engine = "sklearn"
+                            else:
+                                engine = "faiss-ivf" if (use_faiss_ivf and len(df_new_used) >= max(1000, int(faiss_nlist) * 5)) else "faiss-flat"
+                            row_result["Match Type"] = f"Similarity ({engine})"
                         rank += 1
-        
+
                     if rank > 1:
                         results.append(row_result)
 
-
-        # 3. Nicht gematchte ALT-URLs ergänzen
+        # 3) Nicht gematchte ALT-URLs anhängen
         matched_urls_final = set(r["Old URL"] for r in results)
         unmatched = df_old[~df_old['Address'].isin(matched_urls_final)]
         for _, row in unmatched.iterrows():
             results.append({"Old URL": row['Address'], "Match Type": "No Match"})
 
-        # 4. Ergebnis anzeigen und bereitstellen
+        # 4) Ergebnisse anzeigen & Download
         df_result = pd.DataFrame(results)
         st.subheader("🔽 Ergebnisse")
         st.dataframe(df_result)
