@@ -386,8 +386,11 @@ st.set_page_config(page_title=t("page_title"), layout="wide")
 # Language toggle
 colA, colB = st.columns([1, 6])
 with colA:
+    st.markdown('<div class="langbox">', unsafe_allow_html=True)
     is_en = st.toggle(t("lang_toggle"), value=(st.session_state["lang"] == "en"))
     st.session_state["lang"] = "en" if is_en else "de"
+    st.markdown('</div>', unsafe_allow_html=True)
+
 
 # Logo
 st.markdown("""
@@ -419,22 +422,14 @@ div[data-testid="stDownloadButton"] > button:focus {
 
 st.markdown("""
 <style>
-/* --- Grey highlight for the language switch column --- */
-/* The first column is colA (your language toggle container) */
-div[data-testid="column"]:first-of-type {
+.langbox {
     background: #f3f3f3;
     border: 1px solid #e0e0e0;
     padding: 10px 12px;
     border-radius: 10px;
 }
-
-/* remove extra spacing inside */
-div[data-testid="column"]:first-of-type [data-testid="stToggle"] {
-    margin-bottom: 0;
-}
 </style>
 """, unsafe_allow_html=True)
-
 
 
 
