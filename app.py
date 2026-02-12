@@ -267,7 +267,7 @@ HELP_MD = {
 **Hinweis:** Du kannst entweder schon Embeddings mitbringen oder du lässt sie vom Tool auf Basis ausgewählter Spalten deiner Input-Dateien erstellen.
 """,
     "en": """
-**Goal:** This tool helps you quickly find good redirect targets for **relaunches** or **domain migrations**.
+**Goal:** This tool helps you quickly find redirect targets for **relaunches** or **domain migrations**.
 
 **The choice is yours:**
 - **Exact Match**: 1:1 matching via identical values in selected columns, i.e. H1 stays the same
