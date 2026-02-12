@@ -418,18 +418,6 @@ div[data-testid="stDownloadButton"] > button:focus {
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<style>
-/* Grey box around the language toggle (BaseWeb switch) */
-label[data-baseweb="toggle"] {
-    background: #f3f3f3;
-    border: 1px solid #e0e0e0;
-    padding: 10px 12px;
-    border-radius: 10px;
-    width: fit-content;
-}
-</style>
-""", unsafe_allow_html=True)
 
 
 with st.expander(t("help_expander"), expanded=False):
