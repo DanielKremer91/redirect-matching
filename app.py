@@ -386,10 +386,8 @@ st.set_page_config(page_title=t("page_title"), layout="wide")
 # Language toggle
 colA, colB = st.columns([1, 6])
 with colA:
-    st.markdown('<div class="langbox">', unsafe_allow_html=True)
     is_en = st.toggle(t("lang_toggle"), value=(st.session_state["lang"] == "en"))
     st.session_state["lang"] = "en" if is_en else "de"
-    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # Logo
@@ -422,15 +420,16 @@ div[data-testid="stDownloadButton"] > button:focus {
 
 st.markdown("""
 <style>
-.langbox {
+/* Grey box around the language toggle (BaseWeb switch) */
+label[data-baseweb="toggle"] {
     background: #f3f3f3;
     border: 1px solid #e0e0e0;
     padding: 10px 12px;
     border-radius: 10px;
+    width: fit-content;
 }
 </style>
 """, unsafe_allow_html=True)
-
 
 
 with st.expander(t("help_expander"), expanded=False):
