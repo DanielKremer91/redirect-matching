@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import faiss
 from collections import Counter
 import re
-from typing import Optional
+from typing import Optional, Dict, Tuple, Any
 
 # ============================================================
 # i18n (DE/EN)
@@ -50,24 +50,27 @@ I18N = {
 
         "step_cols": "4. Spaltenauswahl",
         "exact_cols": "Spalten für Exact Match auswählen",
-        "exact_optional_hint": "Optional: Du kannst die Auswahl bei Exact Match leer lassen, wenn du nur semantisches Matching durchführen möchtest.",
 
         "embed_col_header": "#### Embedding-Spaltenauswahl",
         "no_embed_col": "Keine Embedding-Spalte gefunden. Benenne deine Spalten z. B. 'Embeddings'.",
         "embed_col_old": "Embedding-Spalte (OLD)",
         "embed_col_new": "Embedding-Spalte (NEW)",
-        "dim_warn": "Konnte keine sinnvolle Embedding-Dimension erkennen. Bitte gib sie manuell an.",
-        "dim_detected": "Erkannte häufigste Dimension: **{dim}**",
+
+        # Simplified existing-embeddings UX
+        "auto_dim_found": "Erkannte Embedding-Dimension (häufigster Wert): **{dim}**",
+        "advanced_settings": "⚙️ Erweiterte Einstellungen (optional)",
+        "override_dim": "Embedding-Dimension manuell überschreiben",
         "dim_input": "Expected Embedding Dimension",
-        "dim_help": "Trage hier die Modell-Dimension ein (z. B. 768 für MPNet/GTE oder 384 für MiniLM).",
-        "padding_label": "Fehlende Werte mit 0 auffüllen (Padding) – empfohlen, wenn alle Embeddings aus derselben Pipeline stammen",
+        "dim_help": "Normalerweise automatisch erkannt. Überschreibe nur, wenn du sicher bist.",
+        "padding_label": "Fehlende Werte mit 0 auffüllen (Padding)",
         "padlimit_label": "Max. Anteil fehlender Werte pro Zeile, der gepaddet werden darf",
-        "padlimit_help": "Beispiel: 0.2 = 20 % Padding pro Zeile.",
+        "padlimit_help": "Beispiel: 0.1 = bis zu 10% Padding pro Zeile.",
         "dims_diag": "Embedding-Dimensionen anzeigen (Diagnose)",
         "dims_old": "OLD dims:",
         "dims_new": "NEW dims:",
 
         "similarity_cols": "Spalten für semantisches Matching auswählen – auf Basis dieser Inhalte werden die Embeddings erstellt und verglichen",
+        "need_similarity_cols": "Bitte wähle mindestens eine Spalte für das semantische Matching aus.",
 
         "faiss_settings": "#### FAISS Einstellungen",
         "faiss_ivf": "IVF Flat verwenden (empfohlen ab ~2.000 Ziel-URLs)",
@@ -84,7 +87,8 @@ I18N = {
 
         "creating_embeddings": "Erstelle Embeddings mit",
         "model_dim": "Embedding-Dimension des gewählten Modells: **{dim}**",
-        "need_embed_selection": "Bitte oben die Embedding-Spalten & die Dimension auswählen.",
+
+        "need_embed_selection": "Bitte oben die Embedding-Spalten auswählen.",
         "embed_parse_failed": "Embeddings konnten nicht zuverlässig geparst werden.",
         "ivf_fail_fallback": "IVF-Training fehlgeschlagen oder Datensatz zu klein. Fallback auf Flat-IP. Details: {err}",
         "faiss_ivf_active": "FAISS IVF Flat aktiv • nlist={nlist} • nprobe={nprobe} • Korpus={n}",
@@ -106,9 +110,16 @@ I18N = {
         "out_match_basis": "Matching-Basis",
         "out_matched_url": "Ziel-URL {rank}",
         "out_score": "Cosine-Score {rank}",
+        "out_note": "Hinweis",
         "out_no_match": "Kein Match",
         "out_exact_prefix": "Exact Match ({col})",
         "out_similarity": "Similarity ({engine})",
+
+        # Notes
+        "note_dropped_old": "Embedding ungültig/inkonsistent (dim={dim}) → URL wurde im semantischen Matching ignoriert.",
+        "note_bad_new": "Einige Ziel-URLs wurden ignoriert (ungültige Embeddings).",
+        "note_below_threshold": "Kein Treffer über dem Threshold.",
+        "note_no_semantic_run": "Semantisches Matching konnte nicht ausgeführt werden (fehlende Spalten/Embeddings).",
     },
     "en": {
         # UI
@@ -142,24 +153,27 @@ I18N = {
 
         "step_cols": "4. Column selection",
         "exact_cols": "Select columns for Exact Match",
-        "exact_optional_hint": "Optional: You can leave Exact Match empty if you only want semantic matching.",
 
         "embed_col_header": "#### Embedding column selection",
         "no_embed_col": "No embedding column found. Please name your column e.g. 'Embeddings'.",
         "embed_col_old": "Embedding column (OLD)",
         "embed_col_new": "Embedding column (NEW)",
-        "dim_warn": "Could not detect a reliable embedding dimension. Please enter it manually.",
-        "dim_detected": "Most common detected dimension: **{dim}**",
+
+        # Simplified existing-embeddings UX
+        "auto_dim_found": "Detected embedding dimension (most common): **{dim}**",
+        "advanced_settings": "⚙️ Advanced settings (optional)",
+        "override_dim": "Override embedding dimension manually",
         "dim_input": "Expected embedding dimension",
-        "dim_help": "Enter the model dimension (e.g., 768 for MPNet/GTE or 384 for MiniLM).",
-        "padding_label": "Pad missing values with zeros (recommended if embeddings come from the same pipeline)",
+        "dim_help": "Usually auto-detected. Override only if you're sure.",
+        "padding_label": "Pad missing values with zeros",
         "padlimit_label": "Max share of missing values per row that may be padded",
-        "padlimit_help": "Example: 0.2 = up to 20% padding per row.",
+        "padlimit_help": "Example: 0.1 = up to 10% padding per row.",
         "dims_diag": "Show embedding dimensions (diagnostics)",
         "dims_old": "OLD dims:",
         "dims_new": "NEW dims:",
 
         "similarity_cols": "Select columns for semantic matching – embeddings will be created from these fields and compared",
+        "need_similarity_cols": "Please select at least one column for semantic matching.",
 
         "faiss_settings": "#### FAISS settings",
         "faiss_ivf": "Use IVF Flat (recommended above ~2,000 target URLs)",
@@ -176,7 +190,8 @@ I18N = {
 
         "creating_embeddings": "Creating embeddings with",
         "model_dim": "Embedding dimension of the selected model: **{dim}**",
-        "need_embed_selection": "Please select embedding columns and the expected dimension above.",
+
+        "need_embed_selection": "Please select embedding columns above.",
         "embed_parse_failed": "Embeddings could not be parsed reliably.",
         "ivf_fail_fallback": "IVF training failed or dataset too small. Falling back to Flat-IP. Details: {err}",
         "faiss_ivf_active": "FAISS IVF Flat active • nlist={nlist} • nprobe={nprobe} • corpus={n}",
@@ -198,9 +213,16 @@ I18N = {
         "out_match_basis": "Match Basis",
         "out_matched_url": "Matched URL {rank}",
         "out_score": "Cosine Similarity Score {rank}",
+        "out_note": "Note",
         "out_no_match": "No Match",
         "out_exact_prefix": "Exact Match ({col})",
         "out_similarity": "Similarity ({engine})",
+
+        # Notes
+        "note_dropped_old": "Invalid/inconsistent embedding (dim={dim}) → URL was ignored in semantic matching.",
+        "note_bad_new": "Some target URLs were ignored (invalid embeddings).",
+        "note_below_threshold": "No matches above the threshold.",
+        "note_no_semantic_run": "Semantic matching could not run (missing columns/embeddings).",
     },
 }
 
@@ -208,81 +230,21 @@ HELP_MD = {
     "de": """
 **Ziel:** Dieses Tool hilft dir dabei, bei **Relaunches** oder **Domain-Migrationen** passende Redirect-Ziele auf Knopfdruck zu finden.
 
----
+**Ablauf:**
+- **Exact Match** (optional): 1:1-Abgleich über identische Werte in Spalten
+- **Semantisches Matching**: Zuordnung über inhaltliche Ähnlichkeit (Embeddings)
 
-**Vorgehen:** Du hast die Wahl zwischen zwei Matching-Ansätzen:
-- **Exact Matching** – 1:1-Abgleich auf Basis identischer Inhalte in ausgewählten Spalten *(z. B. identische H1, Meta Title)*
-- **Semantisches Matching** – Zuordnung auf Basis **inhaltlicher Ähnlichkeit**. Grundlage: **Vektor-Embeddings**, die du entweder bereitstellst oder automatisch erstellen lässt.
-
-**Was wird benötigt?** Lade zwei Dateien hoch – jeweils mit den URLs deiner alten und neuen Domain.  
-✅ CSV & Excel werden unterstützt (ideal: Screaming Frog Crawls)
-
-💡 Tipp: Mit einem Custom JavaScript kannst du relevanten Seiteninhalt extrahieren und für das semantische Matching nutzen oder (Pro-Tipp) direkt im Screaming Frog basierend auf dem Inhalt die Embeddings berechnen lassen.
-
----
-
-**Modelle zur Embedding-Erstellung (lokal, ohne API):**
-- **Schnell (MiniLM-L6)** – sehr schnell, solide Semantik (große Projekte)
-- **Balanced (MiniLM-L12)** – besser als L6, noch schnell
-- **Modern Balanced (GTE-base)** – sehr gute Semantik, CPU-tauglich
-- **Gründlich (MPNet)** – höchste Genauigkeit (kleinere/mittlere Projekte)
-
-Wenn Embeddings **bereits in deinen Dateien** vorliegen, lädt das Tool **kein Modell**. Wichtig: **Beide Dateien müssen mit demselben Modell** erzeugt worden sein.
-
----
-
-**FAISS vs. sklearn (semantisches Matching)**
-
-| Methode | Geschwindigkeit | Genauigkeit | Ideal für |
-|-------------|------------------|------------------|------------------------|
-| **FAISS** | Sehr hoch | ~90–95 % | Große Projekte (ab ca. 2.000 URLs) |
-| **sklearn** | Langsamer | 100 % exakt | Kleine bis mittlere Projekte |
-
-- **FAISS IVF Flat** nutzt Approximate Neighbor Search – extrem schnell, aber leicht ungenau.
-- **sklearn** berechnet exakte Cosine Similarity – gründlich, aber bei großen Datenmengen langsamer.
-
-**Output:** CSV mit bis zu 5 passenden Redirect-Zielen (inkl. Score).  
-Nicht gematchte ALT-URLs werden mit „Kein Match“ ausgewiesen.
+**Tipp:** Wenn du bereits Embeddings in den Dateien hast, nutzt das Tool sie direkt. Wenn nicht, kannst du Embeddings aus ausgewählten Textspalten erstellen lassen.
 """,
     "en": """
 **Goal:** This tool helps you quickly find good redirect targets for **relaunches** or **domain migrations**.
 
----
+**Flow:**
+- **Exact Match** (optional): 1:1 matching via identical values in selected columns
+- **Semantic matching**: mapping via content similarity (embeddings)
 
-**How it works:** Choose between two approaches:
-- **Exact matching** – 1:1 matching based on identical values in selected columns *(e.g., same H1, Meta Title)*
-- **Semantic matching** – mapping based on **content similarity** using **vector embeddings** (either provided by you or generated by the tool)
-
-**What you need:** Upload two files – one with old URLs and one with new target URLs.  
-✅ CSV & Excel are supported (Screaming Frog exports work great)
-
-💡 Tip: You can extract relevant page text with a custom JavaScript, or (pro tip) generate embeddings directly in Screaming Frog based on page content.
-
----
-
-**Embedding models (local, no API):**
-- **Fast (MiniLM-L6)** – very quick, solid semantics (big projects)
-- **Balanced (MiniLM-L12)** – better than L6, still fast
-- **Modern Balanced (GTE-base)** – strong semantics, CPU-friendly
-- **High Quality (MPNet)** – best accuracy (small/medium projects)
-
-If embeddings already exist in your files, the tool **won’t load any model**. Important: **Both files must be generated with the same model**.
-
----
-
-**FAISS vs. sklearn (semantic matching)**
-
-| Method | Speed | Accuracy | Best for |
-|-------------|------------------|------------------|------------------------|
-| **FAISS** | Very high | ~90–95% | Large projects (≈ 2,000+ URLs) |
-| **sklearn** | Slower | Exact | Small to medium projects |
-
-- **FAISS IVF Flat** uses approximate nearest neighbor search – extremely fast, slightly less precise.
-- **sklearn** computes exact cosine similarity – thorough, but slower on large datasets.
-
-**Output:** CSV with up to 5 redirect suggestions per old URL (incl. score).  
-Unmatched old URLs are marked as “No Match”.
-"""
+**Tip:** If embeddings already exist in your files, the tool uses them directly. Otherwise it can generate embeddings from selected text columns.
+""",
 }
 
 def t(key: str, **kwargs) -> str:
@@ -310,26 +272,36 @@ def parse_series_to_matrix(
     series: pd.Series,
     expected_dim: int,
     allow_padding: bool = True,
-    pad_limit_ratio: float = 0.2,
+    pad_limit_ratio: float = 0.1,
     label: str = ""
-):
+) -> Tuple[Optional[np.ndarray], Optional[list], Dict[Any, Dict[str, Any]]]:
+    """
+    Returns:
+      - matrix (or None)
+      - used_row_indices (or None)
+      - dropped_info: {row_index: {"reason": str, "dim": int}}
+    """
     vecs, idxs = [], []
+    dropped_info: Dict[Any, Dict[str, Any]] = {}
     dropped_parse = dropped_too_short = dropped_pad_limit = 0
 
     for idx, val in series.items():
         if pd.isna(val):
             dropped_parse += 1
+            dropped_info[idx] = {"reason": "parse", "dim": 0}
             continue
 
         nums = float_re.findall(str(val))
         if not nums:
             dropped_parse += 1
+            dropped_info[idx] = {"reason": "parse", "dim": 0}
             continue
 
         try:
             arr = np.array([float(x) for x in nums], dtype="float32")
         except ValueError:
             dropped_parse += 1
+            dropped_info[idx] = {"reason": "parse", "dim": 0}
             continue
 
         L = len(arr)
@@ -346,20 +318,19 @@ def parse_series_to_matrix(
             else:
                 if missing_ratio > pad_limit_ratio:
                     dropped_pad_limit += 1
+                    dropped_info[idx] = {"reason": "pad_limit", "dim": L}
                 else:
                     dropped_too_short += 1
+                    dropped_info[idx] = {"reason": "too_short", "dim": L}
 
     used = len(vecs)
     total = len(series)
     if used == 0:
-        return None, None
+        return None, None, dropped_info
 
-    if st.session_state["lang"] == "de":
-        padding_txt = "an" if allow_padding else "aus"
-    else:
-        padding_txt = "on" if allow_padding else "off"
-
+    padding_txt = ("an" if allow_padding else "aus") if st.session_state["lang"] == "de" else ("on" if allow_padding else "off")
     msg = t("parse_info", label=label, used=used, total=total, dim=expected_dim, padding=padding_txt)
+
     detail = []
     if dropped_parse:     detail.append(t("parse_drop_parse", n=dropped_parse))
     if dropped_too_short: detail.append(t("parse_drop_short", n=dropped_too_short))
@@ -368,7 +339,7 @@ def parse_series_to_matrix(
         msg += t("parse_dropped", detail=", ".join(detail))
     st.info(msg)
 
-    return np.vstack(vecs), list(idxs)
+    return np.vstack(vecs), list(idxs), dropped_info
 
 def count_dims(series: pd.Series):
     dims = []
@@ -483,7 +454,7 @@ if uploaded_old and uploaded_new:
     )
 
     # ============================================================
-    # Embedding source
+    # Embedding source (semantic only)
     # ============================================================
     if matching_method != t("method_exact"):
         st.subheader(t("step_embed_source"))
@@ -496,12 +467,7 @@ if uploaded_old and uploaded_new:
             opts = model_options()
             labels = [x[0] for x in opts]
             label_to_model = {lab: mod for lab, mod in opts}
-
-            chosen_label = st.selectbox(
-                t("model_dropdown_label"),
-                labels,
-                index=2  # default = GTE-base (modern balanced)
-            )
+            chosen_label = st.selectbox(t("model_dropdown_label"), labels, index=2)  # default: gte-base
             model_name = label_to_model[chosen_label]
         else:
             model_name = None
@@ -515,10 +481,8 @@ if uploaded_old and uploaded_new:
     st.subheader(t("step_cols"))
     common_cols = sorted(list(set(df_old.columns) & set(df_new.columns)))
 
-    # ✅ CHANGE REQUEST:
-    # Show "Exact Match columns" selection ONLY when Step 2 is Exact Match.
+    # Exact columns only when method_exact selected
     if matching_method == t("method_exact"):
-        st.caption(t("exact_optional_hint"))
         exact_cols = st.multiselect(t("exact_cols"), common_cols)
     else:
         exact_cols = []
@@ -536,34 +500,38 @@ if uploaded_old and uploaded_new:
         emb_col_old = st.selectbox(t("embed_col_old"), cand_old, index=0)
         emb_col_new = st.selectbox(t("embed_col_new"), cand_new, index=0)
 
-        suggested_dim = infer_expected_dim(df_old[emb_col_old], df_new[emb_col_new])
-        if suggested_dim is None:
-            st.warning(t("dim_warn"))
-            suggested_dim = 768
+        suggested_dim = infer_expected_dim(df_old[emb_col_old], df_new[emb_col_new]) or 768
+        st.caption(t("auto_dim_found", dim=int(suggested_dim)))
 
-        st.caption(t("dim_detected", dim=suggested_dim))
-        expected_dim = st.number_input(
-            t("dim_input"),
-            min_value=8, max_value=4096, value=int(suggested_dim), step=8,
-            help=t("dim_help")
-        )
+        # Defaults (simple)
+        expected_dim = int(suggested_dim)
+        allow_padding = True
+        pad_limit_ratio = 0.1
 
-        allow_padding = st.checkbox(t("padding_label"), value=True)
-        pad_limit_ratio = st.slider(
-            t("padlimit_label"),
-            min_value=0.0, max_value=0.9, value=0.2, step=0.05,
-            help=t("padlimit_help")
-        )
+        with st.expander(t("advanced_settings"), expanded=False):
+            override = st.checkbox(t("override_dim"), value=False)
+            if override:
+                expected_dim = st.number_input(
+                    t("dim_input"),
+                    min_value=8, max_value=4096, value=int(suggested_dim), step=8,
+                    help=t("dim_help")
+                )
+            allow_padding = st.checkbox(t("padding_label"), value=True)
+            pad_limit_ratio = st.slider(
+                t("padlimit_label"),
+                min_value=0.0, max_value=0.9, value=float(pad_limit_ratio), step=0.05,
+                help=t("padlimit_help")
+            )
+            with st.expander(t("dims_diag")):
+                st.write(t("dims_old"), dict(count_dims(df_old[emb_col_old])))
+                st.write(t("dims_new"), dict(count_dims(df_new[emb_col_new])))
 
-        with st.expander(t("dims_diag")):
-            st.write(t("dims_old"), dict(count_dims(df_old[emb_col_old])))
-            st.write(t("dims_new"), dict(count_dims(df_new[emb_col_new])))
     else:
         emb_col_old = None
         emb_col_new = None
         expected_dim = None
         allow_padding = True
-        pad_limit_ratio = 0.2
+        pad_limit_ratio = 0.1
 
     # Text columns for on-the-fly embeddings
     if matching_method != t("method_exact") and embedding_choice == t("embed_create"):
@@ -572,7 +540,7 @@ if uploaded_old and uploaded_new:
         similarity_cols = []
 
     # ============================================================
-    # FAISS IVF settings
+    # FAISS IVF settings (FAISS only)
     # ============================================================
     use_faiss_ivf = False
     faiss_nlist = 0
@@ -581,20 +549,12 @@ if uploaded_old and uploaded_new:
         st.markdown(t("faiss_settings"))
         use_faiss_ivf = st.checkbox(t("faiss_ivf"), value=True, help=t("faiss_ivf_help"))
         est_nlist = int(np.clip(int(np.sqrt(max(1, len(df_new))) * 2), 100, 16384))
-        faiss_nlist = st.number_input(
-            t("faiss_nlist"),
-            min_value=1, max_value=16384, value=est_nlist, step=1,
-            help=t("faiss_nlist_help")
-        )
+        faiss_nlist = st.number_input(t("faiss_nlist"), min_value=1, max_value=16384, value=est_nlist, step=1, help=t("faiss_nlist_help"))
         default_nprobe = int(np.clip(max(1, faiss_nlist // 10), 1, 64))
-        faiss_nprobe = st.number_input(
-            t("faiss_nprobe"),
-            min_value=1, max_value=max(1, faiss_nlist), value=default_nprobe, step=1,
-            help=t("faiss_nprobe_help")
-        )
+        faiss_nprobe = st.number_input(t("faiss_nprobe"), min_value=1, max_value=max(1, faiss_nlist), value=default_nprobe, step=1, help=t("faiss_nprobe_help"))
 
     # ============================================================
-    # Threshold
+    # Threshold (semantic only)
     # ============================================================
     if matching_method != t("method_exact"):
         st.subheader(t("step_threshold"))
@@ -613,6 +573,7 @@ if uploaded_old and uploaded_new:
         COL_OLD = t("out_old_url")
         COL_TYPE = t("out_match_type")
         COL_BASIS = t("out_match_basis")
+        COL_NOTE = t("out_note")
 
         def col_matched(rank: int) -> str:
             return t("out_matched_url", rank=rank)
@@ -620,7 +581,10 @@ if uploaded_old and uploaded_new:
         def col_score(rank: int) -> str:
             return t("out_score", rank=rank)
 
-        # 1) Exact matching (only if method_exact selected)
+        # Track notes for old URLs (even if they end as No Match)
+        old_notes: Dict[str, str] = {}
+
+        # 1) Exact matching
         if matching_method == t("method_exact") and exact_cols:
             for col in exact_cols:
                 exact_matches = pd.merge(
@@ -630,49 +594,63 @@ if uploaded_old and uploaded_new:
                     how="inner"
                 )
                 for _, row in exact_matches.iterrows():
+                    old_url = row["Address_x"]
                     results.append({
-                        COL_OLD: row["Address_x"],
+                        COL_OLD: old_url,
                         col_matched(1): row["Address_y"],
                         COL_TYPE: t("out_exact_prefix", col=col),
                         col_score(1): 1.0,
                         COL_BASIS: f"{col}: {row[col]}",
                     })
-                    matched_old.add(row["Address_x"])
+                    matched_old.add(old_url)
 
-        # 2) Remaining old URLs
+        # Remaining old URLs after exact
         df_remaining = df_old[~df_old['Address'].isin(matched_old)].reset_index(drop=True)
 
-        # 3) Semantic matching (only for semantic methods)
+        semantic_ran = False
+        had_invalid_new = False
+
+        # 2) Semantic matching
         if matching_method != t("method_exact") and df_remaining.shape[0] > 0:
             emb_old_mat = None
             emb_new_mat = None
             df_remaining_used = df_remaining.copy()
             df_new_used = df_new.copy()
 
-            if embedding_choice == t("embed_create") and similarity_cols:
-                st.write(t("creating_embeddings"), model_name)
-                model = SentenceTransformer(model_name)
-                expected_dim_gen = model.get_sentence_embedding_dimension()
-                st.caption(t("model_dim", dim=expected_dim_gen))
+            # On-the-fly embeddings
+            if embedding_choice == t("embed_create"):
+                if not similarity_cols:
+                    # cannot run semantic matching without text columns
+                    for u in df_remaining["Address"].tolist():
+                        old_notes[u] = t("note_no_semantic_run")
+                else:
+                    st.write(t("creating_embeddings"), model_name)
+                    model = SentenceTransformer(model_name)
+                    expected_dim_gen = model.get_sentence_embedding_dimension()
+                    st.caption(t("model_dim", dim=expected_dim_gen))
 
-                df_remaining_used['text'] = df_remaining_used[similarity_cols].fillna('').agg(' '.join, axis=1)
-                df_new_used['text'] = df_new_used[similarity_cols].fillna('').agg(' '.join, axis=1)
-                emb_old_mat = model.encode(df_remaining_used['text'].tolist(), show_progress_bar=True)
-                emb_new_mat = model.encode(df_new_used['text'].tolist(), show_progress_bar=True)
+                    df_remaining_used['text'] = df_remaining_used[similarity_cols].fillna('').agg(' '.join, axis=1)
+                    df_new_used['text'] = df_new_used[similarity_cols].fillna('').agg(' '.join, axis=1)
 
+                    emb_old_mat = model.encode(df_remaining_used['text'].tolist(), show_progress_bar=True)
+                    emb_new_mat = model.encode(df_new_used['text'].tolist(), show_progress_bar=True)
+                    semantic_ran = True
+
+            # Existing embeddings
             elif embedding_choice == t("embed_existing"):
-                if not emb_col_old or not emb_col_new or expected_dim is None:
+                if not emb_col_old or not emb_col_new:
                     st.error(t("need_embed_selection"))
                     st.stop()
 
-                emb_old_mat, rows_old = parse_series_to_matrix(
+                # Parse + collect dropped info
+                emb_old_mat, rows_old, dropped_old = parse_series_to_matrix(
                     df_remaining[emb_col_old],
                     expected_dim=int(expected_dim),
                     allow_padding=allow_padding,
                     pad_limit_ratio=float(pad_limit_ratio),
                     label="OLD"
                 )
-                emb_new_mat, rows_new = parse_series_to_matrix(
+                emb_new_mat, rows_new, dropped_new = parse_series_to_matrix(
                     df_new[emb_col_new],
                     expected_dim=int(expected_dim),
                     allow_padding=allow_padding,
@@ -680,15 +658,32 @@ if uploaded_old and uploaded_new:
                     label="NEW"
                 )
 
-                if emb_old_mat is None or emb_new_mat is None:
+                if emb_old_mat is None or emb_new_mat is None or rows_old is None or rows_new is None:
                     st.error(t("embed_parse_failed"))
                     st.stop()
 
-                df_remaining_used = df_remaining.iloc[rows_old].reset_index(drop=True)
-                df_new_used = df_new.iloc[rows_new].reset_index(drop=True)
+                # Notes for dropped OLD URLs
+                for idx, info in dropped_old.items():
+                    try:
+                        old_url = df_remaining.loc[idx, "Address"]
+                        dim = int(info.get("dim", 0))
+                        if dim > 0:
+                            old_notes[old_url] = t("note_dropped_old", dim=dim)
+                        else:
+                            old_notes[old_url] = t("note_dropped_old", dim=0)
+                    except Exception:
+                        pass
 
-            # Similarity computation
-            if emb_old_mat is not None and emb_new_mat is not None:
+                # If NEW has invalid embeddings, some targets are removed
+                if len(dropped_new) > 0:
+                    had_invalid_new = True
+
+                df_remaining_used = df_remaining.loc[rows_old].reset_index(drop=True)
+                df_new_used = df_new.loc[rows_new].reset_index(drop=True)
+                semantic_ran = True
+
+            # Similarity computation (only if semantic_ran and matrices exist)
+            if semantic_ran and emb_old_mat is not None and emb_new_mat is not None and len(df_new_used) > 0 and len(df_remaining_used) > 0:
                 # sklearn (exact)
                 if matching_method == t("method_sklearn"):
                     sim_matrix = cosine_similarity(emb_old_mat, emb_new_mat)
@@ -701,12 +696,12 @@ if uploaded_old and uploaded_new:
                     engine_for_type = "sklearn"
 
                 else:
-                    # FAISS (IVF or Flat) with cosine via L2 norm + inner product
+                    # FAISS cosine via L2 norm + inner product
                     def _l2norm(x, eps=1e-12):
                         return x / (np.linalg.norm(x, axis=1, keepdims=True) + eps)
 
-                    emb_new_norm = _l2norm(emb_new_mat).astype("float32")
-                    emb_old_norm = _l2norm(emb_old_mat).astype("float32")
+                    emb_new_norm = _l2norm(np.asarray(emb_new_mat)).astype("float32")
+                    emb_old_norm = _l2norm(np.asarray(emb_old_mat)).astype("float32")
                     dim = emb_new_norm.shape[1]
                     k = min(5, len(df_new_used))
 
@@ -744,9 +739,15 @@ if uploaded_old and uploaded_new:
                         st.info(t("faiss_flat_active", n=len(df_new_used)))
                         engine_for_type = "faiss-flat"
 
-                # Collect results (Top-5)
+                # If some NEW embeddings were dropped, tell users (global hint via notes on unmatched too)
+                if had_invalid_new:
+                    # (we'll attach this as a note to No Match rows when relevant)
+                    pass
+
+                # Collect results
                 for i in range(len(df_remaining_used)):
-                    row_result = {COL_OLD: df_remaining_used['Address'].iloc[i]}
+                    old_url = df_remaining_used['Address'].iloc[i]
+                    row_result = {COL_OLD: old_url}
                     top_indices, top_scores = get_topk(i)
 
                     rank = 1
@@ -765,26 +766,51 @@ if uploaded_old and uploaded_new:
 
                     if rank > 1:
                         results.append(row_result)
+                    else:
+                        # semantic ran but nothing above threshold
+                        if old_url not in old_notes:
+                            old_notes[old_url] = t("note_below_threshold")
 
-        # 4) Add unmatched old URLs
+        # 3) Add unmatched old URLs
         matched_urls_final = set(r.get(COL_OLD) for r in results if r.get(COL_OLD) is not None)
         unmatched = df_old[~df_old['Address'].isin(matched_urls_final)]
-        for _, row in unmatched.iterrows():
-            results.append({COL_OLD: row['Address'], COL_TYPE: t("out_no_match")})
 
-        # 5) Build dataframe
+        for _, row in unmatched.iterrows():
+            old_url = row['Address']
+            note = old_notes.get(old_url, "")
+
+            # If semantic method selected but semantic couldn't run, explain
+            if matching_method != t("method_exact") and not note:
+                note = t("note_no_semantic_run")
+
+            # If we dropped some NEW embeddings, mention it (only if user has semantic method)
+            if matching_method != t("method_exact") and had_invalid_new:
+                note = (note + " " + t("note_bad_new")).strip()
+
+            out_row = {COL_OLD: old_url, COL_TYPE: t("out_no_match")}
+            if note:
+                out_row[COL_NOTE] = note
+            results.append(out_row)
+
+        # 4) Build dataframe
         df_result = pd.DataFrame(results)
 
-        # Drop "Match Basis" column if it has no content anywhere
+        # Drop "Match Basis" if empty
         if COL_BASIS in df_result.columns:
             ser = df_result[COL_BASIS].astype(str).str.strip().replace("nan", "")
             if not ser.ne("").any():
                 df_result = df_result.drop(columns=[COL_BASIS])
 
-        # Drop empty matched/score columns (only if fully empty)
-        for r in range(5, 1, -1):
-            mu = col_matched(r)
-            sc = col_score(r)
+        # Drop Note column if empty
+        if COL_NOTE in df_result.columns:
+            ser = df_result[COL_NOTE].astype(str).str.strip().replace("nan", "")
+            if not ser.ne("").any():
+                df_result = df_result.drop(columns=[COL_NOTE])
+
+        # Drop empty matched/score columns globally (keep tidy)
+        for rnk in range(5, 1, -1):
+            mu = col_matched(rnk)
+            sc = col_score(rnk)
             if mu in df_result.columns:
                 s = df_result[mu].astype(str).str.strip().replace("nan", "")
                 if not s.ne("").any():
@@ -794,7 +820,7 @@ if uploaded_old and uploaded_new:
                 if not s.ne("").any():
                     df_result = df_result.drop(columns=[sc])
 
-        # 6) Display + download
+        # 5) Display + download
         st.subheader(t("results_header"))
         st.dataframe(df_result)
 
