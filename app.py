@@ -72,20 +72,25 @@ I18N = {
         "similarity_cols": "Spalten für semantisches Matching auswählen – auf Basis dieser Inhalte werden die Embeddings erstellt und verglichen",
         "need_similarity_cols": "Bitte wähle mindestens eine Spalte für das semantische Matching aus.",
 
+        # FAISS (basic + expert)
         "faiss_settings": "#### FAISS Einstellungen",
-        "faiss_ivf": "IVF Flat verwenden (empfohlen ab ~2.000 Ziel-URLs)",
-        "faiss_ivf_help": "Approximate Neighbor Search mit Clustering. Liefert sehr schnelle Suche bei großen Korpora.",
+        "faiss_ivf": "Schnellmodus aktivieren (IVF Flat) – empfohlen ab ~2.000 Ziel-URLs",
+        "faiss_ivf_help": "IVF Flat nutzt Clustering (Approximate Search). Deutlich schneller bei großen Korpora, minimal ungenauer möglich.",
+        "faiss_expert": "⚙️ Expertenmodus (optional)",
+        "faiss_expert_desc": "Nur anfassen, wenn du weißt, was du tust. Standard ist automatische Optimierung.",
+        "faiss_auto_on": "Automatische Optimierung aktiv (empfohlen).",
         "faiss_nlist": "nlist (Anzahl Cluster)",
         "faiss_nlist_help": "Mehr Cluster = feinere Vorselektion, mehr Speicher/Trainingszeit.",
         "faiss_nprobe": "nprobe (Cluster pro Suche)",
         "faiss_nprobe_help": "Mehr nprobe = höherer Recall, aber langsamer.",
+        "faiss_use_custom": "Ich möchte nlist/nprobe manuell setzen",
 
         "step_threshold": "5. Cosine Similarity Schwelle",
         "threshold_label": "Minimaler Score für semantisches Matching – Empfehlung: mind. 0.75",
 
         "go": "Let's Go",
 
-        # ✅ Better loading UX
+        # Better loading UX
         "loading_model": "Modell wird geladen: **{model}**",
         "building_texts": "Texte werden vorbereitet …",
         "encoding_embeddings": "Embeddings werden berechnet … (das kann je nach Datenmenge dauern)",
@@ -123,10 +128,11 @@ I18N = {
         "note_bad_new": "Einige Ziel-URLs wurden ignoriert (ungültige Embeddings).",
         "note_below_threshold": "Kein Treffer über dem Threshold.",
         "note_no_semantic_run": "Semantisches Matching konnte nicht ausgeführt werden (fehlende Spalten/Embeddings).",
+        "warn_batch_fallback": "Zu wenig Speicher für batch_size=64 – ich nutze batch_size=32.",
     },
     "en": {
         # UI
-        "lang_toggle": "EN Version",
+        "lang_toggle": "English",
         "page_title": "ONE Redirector",
         "title": "ONE Redirector – find the best redirect targets 🔀",
         "help_expander": "ℹ️ What does this tool do? (Explanation & tips)",
@@ -178,20 +184,25 @@ I18N = {
         "similarity_cols": "Select columns for semantic matching – embeddings will be created from these fields and compared",
         "need_similarity_cols": "Please select at least one column for semantic matching.",
 
+        # FAISS (basic + expert)
         "faiss_settings": "#### FAISS settings",
-        "faiss_ivf": "Use IVF Flat (recommended above ~2,000 target URLs)",
-        "faiss_ivf_help": "Approximate nearest neighbor search with clustering. Very fast on large corpora.",
+        "faiss_ivf": "Enable fast mode (IVF Flat) – recommended above ~2,000 target URLs",
+        "faiss_ivf_help": "IVF Flat uses clustering (approximate search). Much faster on large corpora, potentially slightly less exact.",
+        "faiss_expert": "⚙️ Expert mode (optional)",
+        "faiss_expert_desc": "Only change if you know what you're doing. Default is automatic optimization.",
+        "faiss_auto_on": "Automatic optimization is enabled (recommended).",
         "faiss_nlist": "nlist (number of clusters)",
         "faiss_nlist_help": "More clusters = finer preselection, more memory/training time.",
         "faiss_nprobe": "nprobe (clusters per query)",
         "faiss_nprobe_help": "Higher nprobe = better recall, but slower.",
+        "faiss_use_custom": "I want to set nlist/nprobe manually",
 
         "step_threshold": "5. Cosine similarity threshold",
         "threshold_label": "Minimum score for semantic matching – recommendation: at least 0.75",
 
         "go": "Let's Go",
 
-        # ✅ Better loading UX
+        # Better loading UX
         "loading_model": "Loading model: **{model}**",
         "building_texts": "Preparing texts …",
         "encoding_embeddings": "Computing embeddings … (this may take a while depending on dataset size)",
@@ -229,6 +240,7 @@ I18N = {
         "note_bad_new": "Some target URLs were ignored (invalid embeddings).",
         "note_below_threshold": "No matches above the threshold.",
         "note_no_semantic_run": "Semantic matching could not run (missing columns/embeddings).",
+        "warn_batch_fallback": "Not enough memory for batch_size=64 – using batch_size=32.",
     },
 }
 
@@ -328,7 +340,6 @@ def parse_series_to_matrix(
     if used == 0:
         return None, None, dropped_info
 
-    # ✅ User-friendly summary (Variante 1)
     dropped_total = total - used
     st.success(t("parse_summary_ok", used=used, total=total))
     if dropped_total > 0:
@@ -535,18 +546,45 @@ if uploaded_old and uploaded_new:
         similarity_cols = []
 
     # ============================================================
-    # FAISS IVF settings (FAISS only)
+    # FAISS settings (basic + expert mode in expander)
     # ============================================================
     use_faiss_ivf = False
-    faiss_nlist = 0
-    faiss_nprobe = 0
+    faiss_custom = False
+    faiss_nlist = None
+    faiss_nprobe = None
+
     if matching_method == t("method_faiss"):
         st.markdown(t("faiss_settings"))
-        use_faiss_ivf = st.checkbox(t("faiss_ivf"), value=True, help=t("faiss_ivf_help"))
-        est_nlist = int(np.clip(int(np.sqrt(max(1, len(df_new))) * 2), 100, 16384))
-        faiss_nlist = st.number_input(t("faiss_nlist"), min_value=1, max_value=16384, value=est_nlist, step=1, help=t("faiss_nlist_help"))
-        default_nprobe = int(np.clip(max(1, faiss_nlist // 10), 1, 64))
-        faiss_nprobe = st.number_input(t("faiss_nprobe"), min_value=1, max_value=max(1, faiss_nlist), value=default_nprobe, step=1, help=t("faiss_nprobe_help"))
+
+        use_faiss_ivf = st.checkbox(
+            t("faiss_ivf"),
+            value=True,
+            help=t("faiss_ivf_help")
+        )
+
+        # Expert mode: only if IVF is enabled
+        if use_faiss_ivf:
+            with st.expander(t("faiss_expert"), expanded=False):
+                st.caption(t("faiss_expert_desc"))
+                faiss_custom = st.checkbox(t("faiss_use_custom"), value=False)
+
+                if not faiss_custom:
+                    st.info(t("faiss_auto_on"))
+                else:
+                    # Suggested defaults based on dataset size (NEW targets)
+                    est_nlist = int(np.clip(int(np.sqrt(max(1, len(df_new))) * 2), 100, 16384))
+                    default_nprobe = int(np.clip(max(1, est_nlist // 10), 1, 64))
+
+                    faiss_nlist = st.number_input(
+                        t("faiss_nlist"),
+                        min_value=1, max_value=16384, value=int(est_nlist), step=1,
+                        help=t("faiss_nlist_help")
+                    )
+                    faiss_nprobe = st.number_input(
+                        t("faiss_nprobe"),
+                        min_value=1, max_value=max(1, int(faiss_nlist)), value=int(default_nprobe), step=1,
+                        help=t("faiss_nprobe_help")
+                    )
 
     # ============================================================
     # Threshold (semantic only)  ✅ default 0.75
@@ -576,7 +614,6 @@ if uploaded_old and uploaded_new:
         def col_score(rank: int) -> str:
             return t("out_score", rank=rank)
 
-        # Track notes for old URLs (even if they end as No Match)
         old_notes: Dict[str, str] = {}
 
         # 1) Exact matching
@@ -599,7 +636,6 @@ if uploaded_old and uploaded_new:
                     })
                     matched_old.add(old_url)
 
-        # Remaining old URLs after exact
         df_remaining = df_old[~df_old['Address'].isin(matched_old)].reset_index(drop=True)
 
         semantic_ran = False
@@ -618,7 +654,6 @@ if uploaded_old and uploaded_new:
                     for u in df_remaining["Address"].tolist():
                         old_notes[u] = t("note_no_semantic_run")
                 else:
-                    # ✅ Loading / progress UX
                     status = st.status(t("loading_model", model=model_name), expanded=False)
                     with status:
                         st.write(t("building_texts"))
@@ -630,18 +665,29 @@ if uploaded_old and uploaded_new:
                         df_new_used['text'] = df_new_used[similarity_cols].fillna('').agg(' '.join, axis=1)
 
                         st.write(t("encoding_embeddings"))
-                        # show_progress_bar=True shows a tqdm bar in logs; UI feedback is via status/spinner here
-                        emb_old_mat = model.encode(
-                            df_remaining_used["text"].tolist(),
-                            show_progress_bar=False,
-                            batch_size=64
-                        )
-                        emb_new_mat = model.encode(
-                            df_new_used["text"].tolist(),
-                            show_progress_bar=False,
-                            batch_size=64
-                        )
-
+                        try:
+                            emb_old_mat = model.encode(
+                                df_remaining_used["text"].tolist(),
+                                show_progress_bar=False,
+                                batch_size=64
+                            )
+                            emb_new_mat = model.encode(
+                                df_new_used["text"].tolist(),
+                                show_progress_bar=False,
+                                batch_size=64
+                            )
+                        except RuntimeError:
+                            st.warning(t("warn_batch_fallback"))
+                            emb_old_mat = model.encode(
+                                df_remaining_used["text"].tolist(),
+                                show_progress_bar=False,
+                                batch_size=32
+                            )
+                            emb_new_mat = model.encode(
+                                df_new_used["text"].tolist(),
+                                show_progress_bar=False,
+                                batch_size=32
+                            )
 
                         st.success(t("encoding_done"))
                     status.update(state="complete")
@@ -710,13 +756,22 @@ if uploaded_old and uploaded_new:
                     index = None
                     used_ivf = False
 
-                    if use_faiss_ivf and len(df_new_used) >= max(1000, int(faiss_nlist) * 5):
+                    # ---- AUTO: compute nlist/nprobe unless expert overrides ----
+                    N = len(df_new_used)
+                    nlist_auto = int(np.clip(int(np.sqrt(max(1, N)) * 2), 100, 16384))
+                    nprobe_auto = int(np.clip(max(1, nlist_auto // 10), 1, 64))
+
+                    nlist_eff = int(faiss_nlist) if (faiss_custom and faiss_nlist is not None) else nlist_auto
+                    nprobe_eff = int(faiss_nprobe) if (faiss_custom and faiss_nprobe is not None) else nprobe_auto
+
+                    # IVF only if enabled + enough data to train well
+                    if use_faiss_ivf and N >= max(1000, int(nlist_eff) * 5):
                         quantizer = faiss.IndexFlatIP(dim)
-                        index = faiss.IndexIVFFlat(quantizer, dim, int(faiss_nlist), faiss.METRIC_INNER_PRODUCT)
+                        index = faiss.IndexIVFFlat(quantizer, dim, int(nlist_eff), faiss.METRIC_INNER_PRODUCT)
                         try:
                             index.train(emb_new_norm)
                             index.add(emb_new_norm)
-                            index.nprobe = int(min(max(1, int(faiss_nprobe)), int(faiss_nlist)))
+                            index.nprobe = int(min(max(1, int(nprobe_eff)), int(nlist_eff)))
                             used_ivf = True
                         except Exception as e:
                             st.warning(t("ivf_fail_fallback", err=e))
@@ -732,13 +787,10 @@ if uploaded_old and uploaded_new:
                         return faiss_indices[i], faiss_scores[i]
 
                     if used_ivf:
-                        st.info(t("faiss_ivf_active",
-                                  nlist=int(faiss_nlist),
-                                  nprobe=int(min(max(1, int(faiss_nprobe)), int(faiss_nlist))),
-                                  n=len(df_new_used)))
+                        st.info(t("faiss_ivf_active", nlist=int(nlist_eff), nprobe=int(min(max(1, int(nprobe_eff)), int(nlist_eff))), n=N))
                         engine_for_type = "faiss-ivf"
                     else:
-                        st.info(t("faiss_flat_active", n=len(df_new_used)))
+                        st.info(t("faiss_flat_active", n=N))
                         engine_for_type = "faiss-flat"
 
                 for i in range(len(df_remaining_used)):
