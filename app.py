@@ -51,6 +51,11 @@ I18N = {
         "step_cols": "4. Spaltenauswahl",
         "exact_cols": "Spalten für Exact Match auswählen",
 
+        # ✅ Exact match options
+        "exact_options": "Exact-Match Optionen",
+        "exact_ignore_case": "Groß-/Kleinschreibung ignorieren (case-insensitive)",
+        "exact_ignore_case_help": "Wenn aktiv, werden Werte für den Exact Match in Kleinschreibung verglichen (zusätzlich werden Leerzeichen am Anfang/Ende entfernt). Standard ist strict (case-sensitive).",
+
         "embed_col_header": "#### Embedding-Spaltenauswahl",
         "no_embed_col": "Keine Embedding-Spalte gefunden. Benenne deine Spalten z. B. 'Embeddings'.",
         "embed_col_old": "Embedding-Spalte (OLD)",
@@ -162,6 +167,11 @@ I18N = {
 
         "step_cols": "4. Column selection",
         "exact_cols": "Select columns for Exact Match",
+
+        # ✅ Exact match options
+        "exact_options": "Exact match options",
+        "exact_ignore_case": "Ignore case (case-insensitive)",
+        "exact_ignore_case_help": "If enabled, exact matching compares lowercased values (also trims leading/trailing spaces). Default is strict (case-sensitive).",
 
         "embed_col_header": "#### Embedding column selection",
         "no_embed_col": "No embedding column found. Please name your column e.g. 'Embeddings'.",
@@ -386,6 +396,25 @@ st.markdown("""
 
 st.title(t("title"))
 
+# Red download button styling
+st.markdown("""
+<style>
+div[data-testid="stDownloadButton"] > button {
+    background-color: #d7263d !important;
+    color: white !important;
+    border: 1px solid #b51f33 !important;
+}
+div[data-testid="stDownloadButton"] > button:hover {
+    background-color: #b51f33 !important;
+    color: white !important;
+    border: 1px solid #8f1828 !important;
+}
+div[data-testid="stDownloadButton"] > button:focus {
+    box-shadow: 0 0 0 0.2rem rgba(215, 38, 61, 0.35) !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 with st.expander(t("help_expander"), expanded=False):
     st.markdown(HELP_MD[st.session_state["lang"]])
 
@@ -473,7 +502,7 @@ if uploaded_old and uploaded_new:
             opts = model_options()
             labels = [x[0] for x in opts]
             label_to_model = {lab: mod for lab, mod in opts}
-            chosen_label = st.selectbox(t("model_dropdown_label"), labels, index=1)  
+            chosen_label = st.selectbox(t("model_dropdown_label"), labels, index=1)  # default: MiniLM-L12
             model_name = label_to_model[chosen_label]
         else:
             model_name = None
@@ -488,8 +517,17 @@ if uploaded_old and uploaded_new:
     common_cols = sorted(list(set(df_old.columns) & set(df_new.columns)))
 
     # Exact columns only when method_exact selected
+    exact_ignore_case = False
     if matching_method == t("method_exact"):
         exact_cols = st.multiselect(t("exact_cols"), common_cols)
+
+        # ✅ Strict exact by default; optional ignore-case toggle
+        with st.expander(t("exact_options"), expanded=False):
+            exact_ignore_case = st.checkbox(
+                t("exact_ignore_case"),
+                value=False,
+                help=t("exact_ignore_case_help")
+            )
     else:
         exact_cols = []
 
@@ -509,7 +547,6 @@ if uploaded_old and uploaded_new:
         suggested_dim = infer_expected_dim(df_old[emb_col_old], df_new[emb_col_new]) or 768
         st.caption(t("auto_dim_found", dim=int(suggested_dim)))
 
-        # Defaults (simple)
         expected_dim = int(suggested_dim)
         allow_padding = True
         pad_limit_ratio = 0.1
@@ -562,7 +599,6 @@ if uploaded_old and uploaded_new:
             help=t("faiss_ivf_help")
         )
 
-        # Expert mode: only if IVF is enabled
         if use_faiss_ivf:
             with st.expander(t("faiss_expert"), expanded=False):
                 st.caption(t("faiss_expert_desc"))
@@ -571,7 +607,6 @@ if uploaded_old and uploaded_new:
                 if not faiss_custom:
                     st.info(t("faiss_auto_on"))
                 else:
-                    # Suggested defaults based on dataset size (NEW targets)
                     est_nlist = int(np.clip(int(np.sqrt(max(1, len(df_new))) * 2), 100, 16384))
                     default_nprobe = int(np.clip(max(1, est_nlist // 10), 1, 64))
 
@@ -593,7 +628,7 @@ if uploaded_old and uploaded_new:
         st.subheader(t("step_threshold"))
         threshold = st.slider(t("threshold_label"), 0.0, 1.0, 0.75, 0.01)
     else:
-        threshold = 0.75  # not used for exact, but keep consistent
+        threshold = 0.75
 
     # ============================================================
     # Start
@@ -602,7 +637,6 @@ if uploaded_old and uploaded_new:
         results = []
         matched_old = set()
 
-        # Output column names (language-specific)
         COL_OLD = t("out_old_url")
         COL_TYPE = t("out_match_type")
         COL_BASIS = t("out_match_basis")
@@ -616,15 +650,21 @@ if uploaded_old and uploaded_new:
 
         old_notes: Dict[str, str] = {}
 
-        # 1) Exact matching
+        # 1) Exact matching (strict by default; optional ignore-case)
         if matching_method == t("method_exact") and exact_cols:
             for col in exact_cols:
-                exact_matches = pd.merge(
-                    df_old[["Address", col]],
-                    df_new[["Address", col]],
-                    on=col,
-                    how="inner"
-                )
+                left = df_old[["Address", col]].copy()
+                right = df_new[["Address", col]].copy()
+
+                if exact_ignore_case:
+                    # normalize only for matching
+                    left["_match_key"] = left[col].astype(str).str.strip().str.lower()
+                    right["_match_key"] = right[col].astype(str).str.strip().str.lower()
+                    exact_matches = pd.merge(left, right, on="_match_key", how="inner", suffixes=("_x", "_y"))
+                else:
+                    # strict exact: original values
+                    exact_matches = pd.merge(left, right, on=col, how="inner", suffixes=("_x", "_y"))
+
                 for _, row in exact_matches.iterrows():
                     old_url = row["Address_x"]
                     results.append({
@@ -632,10 +672,11 @@ if uploaded_old and uploaded_new:
                         col_matched(1): row["Address_y"],
                         COL_TYPE: t("out_exact_prefix", col=col),
                         col_score(1): 1.0,
-                        COL_BASIS: f"{col}: {row[col]}",
+                        COL_BASIS: f"{col}: {row[col] if not exact_ignore_case else row[col + '_x']}",
                     })
                     matched_old.add(old_url)
 
+        # Remaining after exact
         df_remaining = df_old[~df_old['Address'].isin(matched_old)].reset_index(drop=True)
 
         semantic_ran = False
@@ -648,7 +689,6 @@ if uploaded_old and uploaded_new:
             df_remaining_used = df_remaining.copy()
             df_new_used = df_new.copy()
 
-            # On-the-fly embeddings
             if embedding_choice == t("embed_create"):
                 if not similarity_cols:
                     for u in df_remaining["Address"].tolist():
@@ -666,34 +706,17 @@ if uploaded_old and uploaded_new:
 
                         st.write(t("encoding_embeddings"))
                         try:
-                            emb_old_mat = model.encode(
-                                df_remaining_used["text"].tolist(),
-                                show_progress_bar=False,
-                                batch_size=64
-                            )
-                            emb_new_mat = model.encode(
-                                df_new_used["text"].tolist(),
-                                show_progress_bar=False,
-                                batch_size=64
-                            )
+                            emb_old_mat = model.encode(df_remaining_used["text"].tolist(), show_progress_bar=False, batch_size=64)
+                            emb_new_mat = model.encode(df_new_used["text"].tolist(), show_progress_bar=False, batch_size=64)
                         except RuntimeError:
                             st.warning(t("warn_batch_fallback"))
-                            emb_old_mat = model.encode(
-                                df_remaining_used["text"].tolist(),
-                                show_progress_bar=False,
-                                batch_size=32
-                            )
-                            emb_new_mat = model.encode(
-                                df_new_used["text"].tolist(),
-                                show_progress_bar=False,
-                                batch_size=32
-                            )
+                            emb_old_mat = model.encode(df_remaining_used["text"].tolist(), show_progress_bar=False, batch_size=32)
+                            emb_new_mat = model.encode(df_new_used["text"].tolist(), show_progress_bar=False, batch_size=32)
 
                         st.success(t("encoding_done"))
                     status.update(state="complete")
                     semantic_ran = True
 
-            # Existing embeddings
             elif embedding_choice == t("embed_existing"):
                 if not emb_col_old or not emb_col_new:
                     st.error(t("need_embed_selection"))
@@ -733,7 +756,6 @@ if uploaded_old and uploaded_new:
                 df_new_used = df_new.loc[rows_new].reset_index(drop=True)
                 semantic_ran = True
 
-            # Similarity computation
             if semantic_ran and emb_old_mat is not None and emb_new_mat is not None and len(df_new_used) > 0 and len(df_remaining_used) > 0:
                 if matching_method == t("method_sklearn"):
                     sim_matrix = cosine_similarity(emb_old_mat, emb_new_mat)
@@ -756,7 +778,6 @@ if uploaded_old and uploaded_new:
                     index = None
                     used_ivf = False
 
-                    # ---- AUTO: compute nlist/nprobe unless expert overrides ----
                     N = len(df_new_used)
                     nlist_auto = int(np.clip(int(np.sqrt(max(1, N)) * 2), 100, 16384))
                     nprobe_auto = int(np.clip(max(1, nlist_auto // 10), 1, 64))
@@ -764,7 +785,6 @@ if uploaded_old and uploaded_new:
                     nlist_eff = int(faiss_nlist) if (faiss_custom and faiss_nlist is not None) else nlist_auto
                     nprobe_eff = int(faiss_nprobe) if (faiss_custom and faiss_nprobe is not None) else nprobe_auto
 
-                    # IVF only if enabled + enough data to train well
                     if use_faiss_ivf and N >= max(1000, int(nlist_eff) * 5):
                         quantizer = faiss.IndexFlatIP(dim)
                         index = faiss.IndexIVFFlat(quantizer, dim, int(nlist_eff), faiss.METRIC_INNER_PRODUCT)
@@ -840,19 +860,16 @@ if uploaded_old and uploaded_new:
         # 4) Build dataframe
         df_result = pd.DataFrame(results)
 
-        # Drop "Match Basis" if empty
         if COL_BASIS in df_result.columns:
             ser = df_result[COL_BASIS].astype(str).str.strip().replace("nan", "")
             if not ser.ne("").any():
                 df_result = df_result.drop(columns=[COL_BASIS])
 
-        # Drop Note column if empty
         if COL_NOTE in df_result.columns:
             ser = df_result[COL_NOTE].astype(str).str.strip().replace("nan", "")
             if not ser.ne("").any():
                 df_result = df_result.drop(columns=[COL_NOTE])
 
-        # Drop empty matched/score columns globally (keep tidy)
         for rnk in range(5, 1, -1):
             mu = col_matched(rnk)
             sc = col_score(rnk)
@@ -874,5 +891,6 @@ if uploaded_old and uploaded_new:
             label=t("download"),
             data=csv,
             file_name=t("download_name"),
-            mime='text/csv'
+            mime='text/csv',
+            key="download_results"
         )
