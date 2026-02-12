@@ -41,10 +41,12 @@ I18N = {
         "embed_create": "Embeddings müssen basierend auf meinen Input-Dateien erst noch erstellt werden",
         "embed_existing": "Embeddings sind bereits generiert und in Input-Dateien vorhanden",
 
-        "model_label": "Welches Modell zur Embedding-Generierung soll verwendet werden?",
-        "model_l6": "all-MiniLM-L6-v2 (sehr schnell, solide Semantik)",
-        "model_l12": "all-MiniLM-L12-v2 (schnell, gründlicher)",
-        "model_mpnet": "all-mpnet-base-v2 (präziser, aber langsamer)",
+        # Intuitive model dropdown
+        "model_dropdown_label": "Welche Embedding-Qualität brauchst du?",
+        "model_fast": "Schnell (MiniLM-L6) – für große Projekte, sehr flott",
+        "model_balanced": "Balanced (MiniLM-L12) – besser als L6, noch schnell",
+        "model_modern": "Modern Balanced (GTE-base) – sehr gute Semantik, CPU-tauglich",
+        "model_quality": "Gründlich (MPNet) – beste Qualität, langsamer",
 
         "step_cols": "4. Spaltenauswahl",
         "exact_cols": "Spalten für Exact Match auswählen",
@@ -57,7 +59,7 @@ I18N = {
         "dim_warn": "Konnte keine sinnvolle Embedding-Dimension erkennen. Bitte gib sie manuell an.",
         "dim_detected": "Erkannte häufigste Dimension: **{dim}**",
         "dim_input": "Expected Embedding Dimension",
-        "dim_help": "Trage hier die Modell-Dimension ein (z. B. 768 für MiniLM).",
+        "dim_help": "Trage hier die Modell-Dimension ein (z. B. 768 für MPNet/GTE oder 384 für MiniLM).",
         "padding_label": "Fehlende Werte mit 0 auffüllen (Padding) – empfohlen, wenn alle Embeddings aus derselben Pipeline stammen",
         "padlimit_label": "Max. Anteil fehlender Werte pro Zeile, der gepaddet werden darf",
         "padlimit_help": "Beispiel: 0.2 = 20 % Padding pro Zeile.",
@@ -131,10 +133,12 @@ I18N = {
         "embed_create": "Embeddings should be created from my input files",
         "embed_existing": "Embeddings already exist inside my input files",
 
-        "model_label": "Which model should be used to generate embeddings?",
-        "model_l6": "all-MiniLM-L6-v2 (very fast, solid semantics)",
-        "model_l12": "all-MiniLM-L12-v2 (fast, more thorough)",
-        "model_mpnet": "all-mpnet-base-v2 (more accurate, but slower)",
+        # Intuitive model dropdown
+        "model_dropdown_label": "Which embedding quality do you need?",
+        "model_fast": "Fast (MiniLM-L6) – very quick for big projects",
+        "model_balanced": "Balanced (MiniLM-L12) – better than L6, still fast",
+        "model_modern": "Modern Balanced (GTE-base) – strong semantics, CPU-friendly",
+        "model_quality": "High Quality (MPNet) – best quality, slower",
 
         "step_cols": "4. Column selection",
         "exact_cols": "Select columns for Exact Match",
@@ -147,7 +151,7 @@ I18N = {
         "dim_warn": "Could not detect a reliable embedding dimension. Please enter it manually.",
         "dim_detected": "Most common detected dimension: **{dim}**",
         "dim_input": "Expected embedding dimension",
-        "dim_help": "Enter the model dimension (e.g., 768 for MiniLM).",
+        "dim_help": "Enter the model dimension (e.g., 768 for MPNet/GTE or 384 for MiniLM).",
         "padding_label": "Pad missing values with zeros (recommended if embeddings come from the same pipeline)",
         "padlimit_label": "Max share of missing values per row that may be padded",
         "padlimit_help": "Example: 0.2 = up to 20% padding per row.",
@@ -218,9 +222,10 @@ HELP_MD = {
 ---
 
 **Modelle zur Embedding-Erstellung (lokal, ohne API):**
-- `all-MiniLM-L6-v2` – sehr schnell, solide Semantik (für große Projekte)
-- `all-MiniLM-L12-v2` – gründlicher bei guter Geschwindigkeit
-- `all-mpnet-base-v2` – höchste Genauigkeit (für kleinere/mittlere Projekte)
+- **Schnell (MiniLM-L6)** – sehr schnell, solide Semantik (große Projekte)
+- **Balanced (MiniLM-L12)** – besser als L6, noch schnell
+- **Modern Balanced (GTE-base)** – sehr gute Semantik, CPU-tauglich
+- **Gründlich (MPNet)** – höchste Genauigkeit (kleinere/mittlere Projekte)
 
 Wenn Embeddings **bereits in deinen Dateien** vorliegen, lädt das Tool **kein Modell**. Wichtig: **Beide Dateien müssen mit demselben Modell** erzeugt worden sein.
 
@@ -238,12 +243,6 @@ Wenn Embeddings **bereits in deinen Dateien** vorliegen, lädt das Tool **kein M
 
 **Output:** CSV mit bis zu 5 passenden Redirect-Zielen (inkl. Score).  
 Nicht gematchte ALT-URLs werden mit „Kein Match“ ausgewiesen.
-
-**Weitere Features:**
-- Flexible Spaltenauswahl für Exact und/oder semantisches Matching
-- Manuell einstellbarer **Similarity Threshold**
-- Unterstützung von vorberechneten Embeddings
-- Nachvollziehbare Entscheidungen & Scores
 """,
     "en": """
 **Goal:** This tool helps you quickly find good redirect targets for **relaunches** or **domain migrations**.
@@ -262,9 +261,10 @@ Nicht gematchte ALT-URLs werden mit „Kein Match“ ausgewiesen.
 ---
 
 **Embedding models (local, no API):**
-- `all-MiniLM-L6-v2` – very fast, solid semantics (good for large projects)
-- `all-MiniLM-L12-v2` – more thorough at good speed
-- `all-mpnet-base-v2` – highest accuracy (best for small/medium projects)
+- **Fast (MiniLM-L6)** – very quick, solid semantics (big projects)
+- **Balanced (MiniLM-L12)** – better than L6, still fast
+- **Modern Balanced (GTE-base)** – strong semantics, CPU-friendly
+- **High Quality (MPNet)** – best accuracy (small/medium projects)
 
 If embeddings already exist in your files, the tool **won’t load any model**. Important: **Both files must be generated with the same model**.
 
@@ -282,12 +282,6 @@ If embeddings already exist in your files, the tool **won’t load any model**. 
 
 **Output:** CSV with up to 5 redirect suggestions per old URL (incl. score).  
 Unmatched old URLs are marked as “No Match”.
-
-**More features:**
-- Flexible column selection for exact and/or semantic matching
-- Manual **similarity threshold**
-- Supports precomputed embeddings
-- Transparent scores & decisions
 """
 }
 
@@ -295,6 +289,17 @@ def t(key: str, **kwargs) -> str:
     lang = st.session_state.get("lang", "de")
     s = I18N[lang].get(key, key)
     return s.format(**kwargs)
+
+# ============================================================
+# Model mapping (intuitive labels -> HF model name)
+# ============================================================
+def model_options():
+    return [
+        (t("model_fast"), "all-MiniLM-L6-v2"),
+        (t("model_balanced"), "all-MiniLM-L12-v2"),
+        (t("model_modern"), "thenlper/gte-base"),
+        (t("model_quality"), "all-mpnet-base-v2"),
+    ]
 
 # ============================================================
 # Parsing / Utility
@@ -487,13 +492,17 @@ if uploaded_old and uploaded_new:
             [t("embed_create"), t("embed_existing")]
         )
 
-        model_name = "all-MiniLM-L6-v2"
         if embedding_choice == t("embed_create"):
-            model_label = st.selectbox(
-                t("model_label"),
-                [t("model_l6"), t("model_l12"), t("model_mpnet")]
+            opts = model_options()
+            labels = [x[0] for x in opts]
+            label_to_model = {lab: mod for lab, mod in opts}
+
+            chosen_label = st.selectbox(
+                t("model_dropdown_label"),
+                labels,
+                index=2  # default = GTE-base (modern balanced)
             )
-            model_name = model_label.split()[0]
+            model_name = label_to_model[chosen_label]
         else:
             model_name = None
     else:
@@ -506,10 +515,13 @@ if uploaded_old and uploaded_new:
     st.subheader(t("step_cols"))
     common_cols = sorted(list(set(df_old.columns) & set(df_new.columns)))
 
-    if matching_method != t("method_exact"):
+    # ✅ CHANGE REQUEST:
+    # Show "Exact Match columns" selection ONLY when Step 2 is Exact Match.
+    if matching_method == t("method_exact"):
         st.caption(t("exact_optional_hint"))
-
-    exact_cols = st.multiselect(t("exact_cols"), common_cols)
+        exact_cols = st.multiselect(t("exact_cols"), common_cols)
+    else:
+        exact_cols = []
 
     # Embedding columns (existing embeddings)
     if matching_method != t("method_exact") and embedding_choice == t("embed_existing"):
@@ -608,27 +620,29 @@ if uploaded_old and uploaded_new:
         def col_score(rank: int) -> str:
             return t("out_score", rank=rank)
 
-        # 1) Exact matching
-        for col in exact_cols:
-            exact_matches = pd.merge(
-                df_old[["Address", col]],
-                df_new[["Address", col]],
-                on=col,
-                how="inner"
-            )
-            for _, row in exact_matches.iterrows():
-                results.append({
-                    COL_OLD: row["Address_x"],
-                    col_matched(1): row["Address_y"],
-                    COL_TYPE: t("out_exact_prefix", col=col),
-                    col_score(1): 1.0,
-                    COL_BASIS: f"{col}: {row[col]}",
-                })
-                matched_old.add(row["Address_x"])
+        # 1) Exact matching (only if method_exact selected)
+        if matching_method == t("method_exact") and exact_cols:
+            for col in exact_cols:
+                exact_matches = pd.merge(
+                    df_old[["Address", col]],
+                    df_new[["Address", col]],
+                    on=col,
+                    how="inner"
+                )
+                for _, row in exact_matches.iterrows():
+                    results.append({
+                        COL_OLD: row["Address_x"],
+                        col_matched(1): row["Address_y"],
+                        COL_TYPE: t("out_exact_prefix", col=col),
+                        col_score(1): 1.0,
+                        COL_BASIS: f"{col}: {row[col]}",
+                    })
+                    matched_old.add(row["Address_x"])
 
-        # 2) Semantic matching for remaining old URLs
+        # 2) Remaining old URLs
         df_remaining = df_old[~df_old['Address'].isin(matched_old)].reset_index(drop=True)
 
+        # 3) Semantic matching (only for semantic methods)
         if matching_method != t("method_exact") and df_remaining.shape[0] > 0:
             emb_old_mat = None
             emb_new_mat = None
@@ -684,7 +698,6 @@ if uploaded_old and uploaded_new:
                         top_indices = np.argsort(row_scores)[::-1][:5]
                         return top_indices, row_scores[top_indices]
 
-                    engine_name_for_label = "sklearn"
                     engine_for_type = "sklearn"
 
                 else:
@@ -731,8 +744,6 @@ if uploaded_old and uploaded_new:
                         st.info(t("faiss_flat_active", n=len(df_new_used)))
                         engine_for_type = "faiss-flat"
 
-                    engine_name_for_label = "faiss"
-
                 # Collect results (Top-5)
                 for i in range(len(df_remaining_used)):
                     row_result = {COL_OLD: df_remaining_used['Address'].iloc[i]}
@@ -755,24 +766,22 @@ if uploaded_old and uploaded_new:
                     if rank > 1:
                         results.append(row_result)
 
-        # 3) Add unmatched old URLs
+        # 4) Add unmatched old URLs
         matched_urls_final = set(r.get(COL_OLD) for r in results if r.get(COL_OLD) is not None)
         unmatched = df_old[~df_old['Address'].isin(matched_urls_final)]
         for _, row in unmatched.iterrows():
             results.append({COL_OLD: row['Address'], COL_TYPE: t("out_no_match")})
 
-        # 4) Build dataframe
+        # 5) Build dataframe
         df_result = pd.DataFrame(results)
 
-        # Drop "Matching Basis" column if it has no content anywhere
+        # Drop "Match Basis" column if it has no content anywhere
         if COL_BASIS in df_result.columns:
-            ser = df_result[COL_BASIS].astype(str).str.strip()
-            ser = ser.replace("nan", "")
+            ser = df_result[COL_BASIS].astype(str).str.strip().replace("nan", "")
             if not ser.ne("").any():
                 df_result = df_result.drop(columns=[COL_BASIS])
 
-        # Optional: drop empty "Matched URL {rank}" / "Score {rank}" columns (only if fully empty)
-        # This keeps output tidy when fewer than 5 matches exist globally.
+        # Drop empty matched/score columns (only if fully empty)
         for r in range(5, 1, -1):
             mu = col_matched(r)
             sc = col_score(r)
@@ -785,7 +794,7 @@ if uploaded_old and uploaded_new:
                 if not s.ne("").any():
                     df_result = df_result.drop(columns=[sc])
 
-        # 5) Display + download
+        # 6) Display + download
         st.subheader(t("results_header"))
         st.dataframe(df_result)
 
