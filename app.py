@@ -417,6 +417,53 @@ div[data-testid="stDownloadButton"] > button:focus {
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+/* Make the download button red */
+div[data-testid="stDownloadButton"] > button {
+    background-color: #d7263d !important;
+    color: white !important;
+    border: 1px solid #b51f33 !important;
+}
+div[data-testid="stDownloadButton"] > button:hover {
+    background-color: #b51f33 !important;
+    color: white !important;
+    border: 1px solid #8f1828 !important;
+}
+div[data-testid="stDownloadButton"] > button:focus {
+    box-shadow: 0 0 0 0.2rem rgba(215, 38, 61, 0.35) !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+# 👇 HIER EINFÜGEN
+st.markdown("""
+<style>
+
+/* --- Language Toggle Styling --- */
+div[data-testid="stToggle"] {
+    background-color: #f2f2f2;
+    padding: 6px 10px;
+    border-radius: 8px;
+}
+
+div[data-testid="stToggle"] label div[role="switch"] {
+    background-color: #cfcfcf !important;
+}
+
+div[data-testid="stToggle"] label div[role="switch"][aria-checked="true"] {
+    background-color: #9e9e9e !important;
+}
+
+div[data-testid="stToggle"] label span {
+    font-weight: 500;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+
 with st.expander(t("help_expander"), expanded=False):
     st.markdown(HELP_MD[st.session_state["lang"]])
 
