@@ -473,7 +473,7 @@ if uploaded_old and uploaded_new:
             opts = model_options()
             labels = [x[0] for x in opts]
             label_to_model = {lab: mod for lab, mod in opts}
-            chosen_label = st.selectbox(t("model_dropdown_label"), labels, index=2)  # default: gte-base
+            chosen_label = st.selectbox(t("model_dropdown_label"), labels, index=1)  
             model_name = label_to_model[chosen_label]
         else:
             model_name = None
