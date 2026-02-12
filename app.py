@@ -20,7 +20,7 @@ init_lang()
 I18N = {
     "de": {
         # UI
-        "lang_toggle": "English",
+        "lang_toggle": "EN Version",
         "page_title": "ONE Redirector",
         "title": "ONE Redirector – finde die passenden Redirect-Ziele 🔀",
         "help_expander": "ℹ️ Was macht das Tool? (Erklärung & Tipps)",
@@ -85,7 +85,12 @@ I18N = {
 
         "go": "Let's Go",
 
-        "creating_embeddings": "Erstelle Embeddings mit",
+        # ✅ Better loading UX
+        "loading_model": "Modell wird geladen: **{model}**",
+        "building_texts": "Texte werden vorbereitet …",
+        "encoding_embeddings": "Embeddings werden berechnet … (das kann je nach Datenmenge dauern)",
+        "encoding_done": "Embeddings fertig berechnet.",
+
         "model_dim": "Embedding-Dimension des gewählten Modells: **{dim}**",
 
         "need_embed_selection": "Bitte oben die Embedding-Spalten auswählen.",
@@ -94,11 +99,9 @@ I18N = {
         "faiss_ivf_active": "FAISS IVF Flat aktiv • nlist={nlist} • nprobe={nprobe} • Korpus={n}",
         "faiss_flat_active": "FAISS Flat (exakt) aktiv • Korpus={n}",
 
-        "parse_info": "📏 Embedding-Parsing {label}: verwendet={used}/{total}, expected_dim={dim}, padding={padding}",
-        "parse_dropped": " | verworfen: {detail}",
-        "parse_drop_parse": "Parsing-Fehler/leer: {n}",
-        "parse_drop_short": "zu kurz (ohne Padding): {n}",
-        "parse_drop_padlimit": "Padding-Limit überschritten: {n}",
+        # user-friendly parsing summary (Variante 1)
+        "parse_summary_ok": "**{used} von {total} URLs konnten für das semantische Matching verwendet werden.**",
+        "parse_summary_drop": "{dropped} URLs wurden wegen fehlerhafter oder unvollständiger Embeddings ignoriert.",
 
         "results_header": "🔽 Ergebnisse",
         "download": "📥 Ergebnisse als CSV herunterladen",
@@ -123,7 +126,7 @@ I18N = {
     },
     "en": {
         # UI
-        "lang_toggle": "English",
+        "lang_toggle": "EN Version",
         "page_title": "ONE Redirector",
         "title": "ONE Redirector – find the best redirect targets 🔀",
         "help_expander": "ℹ️ What does this tool do? (Explanation & tips)",
@@ -188,7 +191,12 @@ I18N = {
 
         "go": "Let's Go",
 
-        "creating_embeddings": "Creating embeddings with",
+        # ✅ Better loading UX
+        "loading_model": "Loading model: **{model}**",
+        "building_texts": "Preparing texts …",
+        "encoding_embeddings": "Computing embeddings … (this may take a while depending on dataset size)",
+        "encoding_done": "Embeddings computed.",
+
         "model_dim": "Embedding dimension of the selected model: **{dim}**",
 
         "need_embed_selection": "Please select embedding columns above.",
@@ -197,11 +205,9 @@ I18N = {
         "faiss_ivf_active": "FAISS IVF Flat active • nlist={nlist} • nprobe={nprobe} • corpus={n}",
         "faiss_flat_active": "FAISS Flat (exact) active • corpus={n}",
 
-        "parse_info": "📏 Embedding parsing {label}: used={used}/{total}, expected_dim={dim}, padding={padding}",
-        "parse_dropped": " | dropped: {detail}",
-        "parse_drop_parse": "Parse errors/empty: {n}",
-        "parse_drop_short": "too short (no padding): {n}",
-        "parse_drop_padlimit": "padding limit exceeded: {n}",
+        # user-friendly parsing summary (Variant 1)
+        "parse_summary_ok": "**{used} of {total} URLs could be used for semantic matching.**",
+        "parse_summary_drop": "{dropped} URLs were ignored due to invalid or incomplete embeddings.",
 
         "results_header": "🔽 Results",
         "download": "📥 Download results as CSV",
@@ -230,20 +236,20 @@ HELP_MD = {
     "de": """
 **Ziel:** Dieses Tool hilft dir dabei, bei **Relaunches** oder **Domain-Migrationen** passende Redirect-Ziele auf Knopfdruck zu finden.
 
-**Ablauf:**
-- **Exact Match** (optional): 1:1-Abgleich über identische Werte in Spalten
+**Du hast die Wahl zwischen:**
+- **Exact Match**: 1:1-Abgleich über identische Werte in Spalten, z. B. die H1 bleibt vor und nach dem Relaunch gleich
 - **Semantisches Matching**: Zuordnung über inhaltliche Ähnlichkeit (Embeddings)
 
-**Tipp:** Wenn du bereits Embeddings in den Dateien hast, nutzt das Tool sie direkt. Wenn nicht, kannst du Embeddings aus ausgewählten Textspalten erstellen lassen.
+**Hinweis:** Du kannst entweder schon Embeddings mitbringen oder du lässt sie vom Tool auf Basis ausgewählter Spalten deiner Input-Dateien erstellen.
 """,
     "en": """
 **Goal:** This tool helps you quickly find good redirect targets for **relaunches** or **domain migrations**.
 
-**Flow:**
-- **Exact Match** (optional): 1:1 matching via identical values in selected columns
+**The choice is yours:**
+- **Exact Match**: 1:1 matching via identical values in selected columns, i.e. H1 stays the same
 - **Semantic matching**: mapping via content similarity (embeddings)
 
-**Tip:** If embeddings already exist in your files, the tool uses them directly. Otherwise it can generate embeddings from selected text columns.
+**Note:** You can either provide precomputed embeddings or have the tool generate them based on selected columns from your input files.
 """,
 }
 
@@ -275,12 +281,6 @@ def parse_series_to_matrix(
     pad_limit_ratio: float = 0.1,
     label: str = ""
 ) -> Tuple[Optional[np.ndarray], Optional[list], Dict[Any, Dict[str, Any]]]:
-    """
-    Returns:
-      - matrix (or None)
-      - used_row_indices (or None)
-      - dropped_info: {row_index: {"reason": str, "dim": int}}
-    """
     vecs, idxs = [], []
     dropped_info: Dict[Any, Dict[str, Any]] = {}
     dropped_parse = dropped_too_short = dropped_pad_limit = 0
@@ -328,16 +328,11 @@ def parse_series_to_matrix(
     if used == 0:
         return None, None, dropped_info
 
-    padding_txt = ("an" if allow_padding else "aus") if st.session_state["lang"] == "de" else ("on" if allow_padding else "off")
-    msg = t("parse_info", label=label, used=used, total=total, dim=expected_dim, padding=padding_txt)
-
-    detail = []
-    if dropped_parse:     detail.append(t("parse_drop_parse", n=dropped_parse))
-    if dropped_too_short: detail.append(t("parse_drop_short", n=dropped_too_short))
-    if dropped_pad_limit: detail.append(t("parse_drop_padlimit", n=dropped_pad_limit))
-    if detail:
-        msg += t("parse_dropped", detail=", ".join(detail))
-    st.info(msg)
+    # ✅ User-friendly summary (Variante 1)
+    dropped_total = total - used
+    st.success(t("parse_summary_ok", used=used, total=total))
+    if dropped_total > 0:
+        st.warning(t("parse_summary_drop", dropped=dropped_total))
 
     return np.vstack(vecs), list(idxs), dropped_info
 
@@ -554,13 +549,13 @@ if uploaded_old and uploaded_new:
         faiss_nprobe = st.number_input(t("faiss_nprobe"), min_value=1, max_value=max(1, faiss_nlist), value=default_nprobe, step=1, help=t("faiss_nprobe_help"))
 
     # ============================================================
-    # Threshold (semantic only)
+    # Threshold (semantic only)  ✅ default 0.75
     # ============================================================
     if matching_method != t("method_exact"):
         st.subheader(t("step_threshold"))
-        threshold = st.slider(t("threshold_label"), 0.0, 1.0, 0.5, 0.01)
+        threshold = st.slider(t("threshold_label"), 0.0, 1.0, 0.75, 0.01)
     else:
-        threshold = 0.5
+        threshold = 0.75  # not used for exact, but keep consistent
 
     # ============================================================
     # Start
@@ -620,20 +615,36 @@ if uploaded_old and uploaded_new:
             # On-the-fly embeddings
             if embedding_choice == t("embed_create"):
                 if not similarity_cols:
-                    # cannot run semantic matching without text columns
                     for u in df_remaining["Address"].tolist():
                         old_notes[u] = t("note_no_semantic_run")
                 else:
-                    st.write(t("creating_embeddings"), model_name)
-                    model = SentenceTransformer(model_name)
-                    expected_dim_gen = model.get_sentence_embedding_dimension()
-                    st.caption(t("model_dim", dim=expected_dim_gen))
+                    # ✅ Loading / progress UX
+                    status = st.status(t("loading_model", model=model_name), expanded=False)
+                    with status:
+                        st.write(t("building_texts"))
+                        model = SentenceTransformer(model_name)
+                        expected_dim_gen = model.get_sentence_embedding_dimension()
+                        st.caption(t("model_dim", dim=expected_dim_gen))
 
-                    df_remaining_used['text'] = df_remaining_used[similarity_cols].fillna('').agg(' '.join, axis=1)
-                    df_new_used['text'] = df_new_used[similarity_cols].fillna('').agg(' '.join, axis=1)
+                        df_remaining_used['text'] = df_remaining_used[similarity_cols].fillna('').agg(' '.join, axis=1)
+                        df_new_used['text'] = df_new_used[similarity_cols].fillna('').agg(' '.join, axis=1)
 
-                    emb_old_mat = model.encode(df_remaining_used['text'].tolist(), show_progress_bar=True)
-                    emb_new_mat = model.encode(df_new_used['text'].tolist(), show_progress_bar=True)
+                        st.write(t("encoding_embeddings"))
+                        # show_progress_bar=True shows a tqdm bar in logs; UI feedback is via status/spinner here
+                        emb_old_mat = model.encode(
+                            df_remaining_used["text"].tolist(),
+                            show_progress_bar=False,
+                            batch_size=64
+                        )
+                        emb_new_mat = model.encode(
+                            df_new_used["text"].tolist(),
+                            show_progress_bar=False,
+                            batch_size=64
+                        )
+
+
+                        st.success(t("encoding_done"))
+                    status.update(state="complete")
                     semantic_ran = True
 
             # Existing embeddings
@@ -642,7 +653,6 @@ if uploaded_old and uploaded_new:
                     st.error(t("need_embed_selection"))
                     st.stop()
 
-                # Parse + collect dropped info
                 emb_old_mat, rows_old, dropped_old = parse_series_to_matrix(
                     df_remaining[emb_col_old],
                     expected_dim=int(expected_dim),
@@ -662,19 +672,14 @@ if uploaded_old and uploaded_new:
                     st.error(t("embed_parse_failed"))
                     st.stop()
 
-                # Notes for dropped OLD URLs
                 for idx, info in dropped_old.items():
                     try:
                         old_url = df_remaining.loc[idx, "Address"]
                         dim = int(info.get("dim", 0))
-                        if dim > 0:
-                            old_notes[old_url] = t("note_dropped_old", dim=dim)
-                        else:
-                            old_notes[old_url] = t("note_dropped_old", dim=0)
+                        old_notes[old_url] = t("note_dropped_old", dim=dim)
                     except Exception:
                         pass
 
-                # If NEW has invalid embeddings, some targets are removed
                 if len(dropped_new) > 0:
                     had_invalid_new = True
 
@@ -682,9 +687,8 @@ if uploaded_old and uploaded_new:
                 df_new_used = df_new.loc[rows_new].reset_index(drop=True)
                 semantic_ran = True
 
-            # Similarity computation (only if semantic_ran and matrices exist)
+            # Similarity computation
             if semantic_ran and emb_old_mat is not None and emb_new_mat is not None and len(df_new_used) > 0 and len(df_remaining_used) > 0:
-                # sklearn (exact)
                 if matching_method == t("method_sklearn"):
                     sim_matrix = cosine_similarity(emb_old_mat, emb_new_mat)
 
@@ -694,9 +698,7 @@ if uploaded_old and uploaded_new:
                         return top_indices, row_scores[top_indices]
 
                     engine_for_type = "sklearn"
-
                 else:
-                    # FAISS cosine via L2 norm + inner product
                     def _l2norm(x, eps=1e-12):
                         return x / (np.linalg.norm(x, axis=1, keepdims=True) + eps)
 
@@ -739,12 +741,6 @@ if uploaded_old and uploaded_new:
                         st.info(t("faiss_flat_active", n=len(df_new_used)))
                         engine_for_type = "faiss-flat"
 
-                # If some NEW embeddings were dropped, tell users (global hint via notes on unmatched too)
-                if had_invalid_new:
-                    # (we'll attach this as a note to No Match rows when relevant)
-                    pass
-
-                # Collect results
                 for i in range(len(df_remaining_used)):
                     old_url = df_remaining_used['Address'].iloc[i]
                     row_result = {COL_OLD: old_url}
@@ -767,7 +763,6 @@ if uploaded_old and uploaded_new:
                     if rank > 1:
                         results.append(row_result)
                     else:
-                        # semantic ran but nothing above threshold
                         if old_url not in old_notes:
                             old_notes[old_url] = t("note_below_threshold")
 
@@ -779,11 +774,9 @@ if uploaded_old and uploaded_new:
             old_url = row['Address']
             note = old_notes.get(old_url, "")
 
-            # If semantic method selected but semantic couldn't run, explain
             if matching_method != t("method_exact") and not note:
                 note = t("note_no_semantic_run")
 
-            # If we dropped some NEW embeddings, mention it (only if user has semantic method)
             if matching_method != t("method_exact") and had_invalid_new:
                 note = (note + " " + t("note_bad_new")).strip()
 
