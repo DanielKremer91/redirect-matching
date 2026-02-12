@@ -60,6 +60,7 @@ I18N = {
         "no_embed_col": "Keine Embedding-Spalte gefunden. Benenne deine Spalten z. B. 'Embeddings'.",
         "embed_col_old": "Embedding-Spalte (OLD)",
         "embed_col_new": "Embedding-Spalte (NEW)",
+        "embed_col_help": "Das Tool zeigt hier alle Spalten an, deren Name „embed“ enthält (z. B. Embeddings, embedding_vector).",
 
         # Simplified existing-embeddings UX
         "auto_dim_found": "Erkannte Embedding-Dimension (häufigster Wert): **{dim}**",
@@ -91,7 +92,7 @@ I18N = {
         "faiss_use_custom": "Ich möchte nlist/nprobe manuell setzen",
 
         "step_threshold": "5. Cosine Similarity Schwelle",
-        "threshold_label": "Minimaler Score für semantisches Matching – Empfehlung: mind. 0.75",
+        "threshold_label": "Minimaler Score für semantisches Matching",
 
         "go": "Let's Go",
 
@@ -177,6 +178,7 @@ I18N = {
         "no_embed_col": "No embedding column found. Please name your column e.g. 'Embeddings'.",
         "embed_col_old": "Embedding column (OLD)",
         "embed_col_new": "Embedding column (NEW)",
+        "embed_col_help": "This list contains all columns whose name includes “embed” (e.g. Embeddings, embedding_vector).",
 
         # Simplified existing-embeddings UX
         "auto_dim_found": "Detected embedding dimension (most common): **{dim}**",
@@ -208,7 +210,7 @@ I18N = {
         "faiss_use_custom": "I want to set nlist/nprobe manually",
 
         "step_threshold": "5. Cosine similarity threshold",
-        "threshold_label": "Minimum score for semantic matching – recommendation: at least 0.75",
+        "threshold_label": "Minimum score for semantic matching",
 
         "go": "Let's Go",
 
@@ -541,8 +543,8 @@ if uploaded_old and uploaded_new:
             st.error(t("no_embed_col"))
             st.stop()
 
-        emb_col_old = st.selectbox(t("embed_col_old"), cand_old, index=0)
-        emb_col_new = st.selectbox(t("embed_col_new"), cand_new, index=0)
+        emb_col_old = st.selectbox(t("embed_col_old"), cand_old, index=0, help=t("embed_col_help"))
+        emb_col_new = st.selectbox(t("embed_col_new"), cand_new, index=0, help=t("embed_col_help"))
 
         suggested_dim = infer_expected_dim(df_old[emb_col_old], df_new[emb_col_new]) or 768
         st.caption(t("auto_dim_found", dim=int(suggested_dim)))
